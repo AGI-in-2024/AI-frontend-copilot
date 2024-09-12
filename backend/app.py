@@ -127,9 +127,6 @@ def combine_code_and_store_in_chroma():
     loader = CSVLoader(file_path=OUTPUT_CSV)
     documents = loader.load()
     
-    # Print document lengths (optional, for debugging)
-    print([len(doc.page_content) for doc in documents])
-    
     db = Chroma.from_documents(documents, embeddings, persist_directory=CHROMA_PERSIST_DIRECTORY)
     db.persist()
     
@@ -217,4 +214,4 @@ def health_check():
     return jsonify({"status": "healthy"}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

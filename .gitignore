@@ -1,56 +1,42 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
-*.egg-info/
-.eggs/
-*.pyc
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Virtual Environment
-venv/
-env/
-.env
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# Flask
-instance/
-.webassets-cache
+# testing
+/coverage
 
-# Node.js
-node_modules/
-npm-debug.log
-yarn-error.log
+# database
+/prisma/db.sqlite
+/prisma/db.sqlite-journal
 
-# Next.js
-.next/
-out/
+# next.js
+/.next/
+/out/
+next-env.d.ts
 
-# IDEs and Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# production
+/build
 
-# OS generated files
+# misc
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+*.pem
 
-# Project specific
-combined_code.csv
-chroma_db/
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Logs
-*.log
+# local env files
+# do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
+.env
+.env*.local
 
-# Temporary files
-*.tmp
-*.bak
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo

@@ -4,8 +4,8 @@ langchain
 faiss-cpu
 openai
 python-dotenv
-langchain
 langchain-community
 langchain_openai
 chromadb
 langchain-chroma
+langgraph

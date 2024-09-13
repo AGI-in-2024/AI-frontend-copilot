@@ -6,31 +6,27 @@ import traceback
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app, resources={r"/generate": {"origins": "http://your-frontend-domain.com"}})  # Allow all origins for testing
+CORS(app, resources={r"/generate": {"origins": "*"}})  # Allow all origins for testing
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
+    app.logger.info("Received request to /generate")
     data = request.json
     app.logger.info(f"Received data: {data}")
 
     if not data or 'question' not in data:
+        app.logger.error("Invalid or missing question in request")
         return jsonify({"error": "Invalid or missing question in request"}), 400
 
     question = data['question']
 
     try:
-        app.logger.info(f"Question: {question}")
-        app.logger.info(f"Current working directory: {os.getcwd()}")
-        app.logger.info(f"Environment variables: {os.environ}")
-
+        app.logger.info(f"Processing question: {question}")
         result = generate(question)
-        app.logger.info(f"Result: {result}")
-
+        app.logger.info(f"Generated result: {result}")
         return jsonify({"result": result})
     except Exception as e:
         app.logger.error(f"Error in generate_ui: {str(e)}")
-        app.logger.error(f"Error type: {type(e)}")
-        app.logger.error(f"Error args: {e.args}")
         app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 

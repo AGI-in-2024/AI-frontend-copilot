@@ -67,12 +67,13 @@ const UiGenerator = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     try {
+      console.log('Sending request to backend...');
       const response = await axios.post('http://185.229.224.98:5000/generate', { question: input }, {
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      console.log('API Response:', response.data);  // Add this line for debugging
+      console.log('Received response from backend:', response.data);
       const generatedCode = response.data.result;
 
       setGeneratedCode(generatedCode);

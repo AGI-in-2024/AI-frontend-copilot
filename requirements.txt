@@ -7,3 +7,4 @@ python-dotenv
 langchain-community
 langchain_openai
 langgraph
+chardet

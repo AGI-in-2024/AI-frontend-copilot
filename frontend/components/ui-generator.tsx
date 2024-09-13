@@ -67,7 +67,11 @@ const UiGenerator = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     try {
-      const response = await axios.post('http://localhost:5000/generate', { question: input });
+      const response = await axios.post('http://localhost:5000/generate', { question: input }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       const generatedCode = response.data.result;
 
       setGeneratedCode(generatedCode);

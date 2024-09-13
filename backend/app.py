@@ -4,7 +4,7 @@ from flask_cors import CORS
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/generate": {"origins": "http://localhost:3000"}})
 
 
 @app.route('/generate', methods=['POST'])

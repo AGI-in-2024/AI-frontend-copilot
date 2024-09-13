@@ -1,135 +1,94 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code } from 'lucide-react'
+import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code, Image as ImageIcon, Maximize2, Download, Copy, Minimize2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import dynamic from 'next/dynamic'
-
-// Updated mock implementation
-const mockDS2 = `
-const React = {
-  createElement: (type, props, ...children) => ({type, props, children}),
-  Fragment: 'Fragment'
-};
-
-const Typography = ({variant, color, children}) => 
-  React.createElement('div', {style: {fontWeight: variant.includes('Bold') ? 'bold' : 'normal'}}, children);
-
-const ds2 = {
-  Typography
-};
-
-// Mock any other components you need here
-`;
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import axios from 'axios';
 
 interface Message {
   id: string
   text: string
   sender: 'user' | 'ai'
+  image?: string
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+interface Version {
+  id: string
+  code: string
+}
 
-export function UiGenerator() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: "Hello! How can I help you generate a UI design today?", sender: 'ai' },
-  ])
+const UiGenerator = () => {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isGeneratingUI, setIsGeneratingUI] = useState(false)
   const [generatedCode, setGeneratedCode] = useState('')
   const [editableCode, setEditableCode] = useState('')
   const [compiledCode, setCompiledCode] = useState<React.ReactNode | null>(null)
   const [showDesign, setShowDesign] = useState(false)
+  const [versions, setVersions] = useState<Version[]>([])
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+  }, [])
 
   useEffect(() => {
     if (generatedCode) {
       setEditableCode(generatedCode)
+      setVersions(prev => [...prev, { id: Date.now().toString(), code: generatedCode }])
+      setSelectedVersion(Date.now().toString())
     }
   }, [generatedCode])
 
-  const handleSend = () => {
-    if (input.trim()) {
-      const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' }
-      setMessages(prev => [...prev, newUserMessage])
-      setInput('')
-      
-      // Simulate AI response
-      setTimeout(() => {
-        const aiReply: Message = {
-          id: (Date.now() + 1).toString(),
-          text: `I understand you want to create a UI for "${input}". Let's generate the UI design based on your description.`,
-          sender: 'ai'
-        }
-        setMessages(prev => [...prev, aiReply])
-      }, 1000)
-    }
-  }
-
-  const handleGenerateUI = async () => {
+  const handleSendAndGenerate = async () => {
     if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Please enter a question or description for the UI.`, sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
       return;
     }
 
+    const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' }
+    setMessages(prev => [...prev, newUserMessage])
+    setInput('')
+
     setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: `Generating UI design...`, sender: 'ai' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     try {
-      const response = await fetch(`${BACKEND_URL}/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: input
-        }),
-      });
+      const response = await axios.post('http://localhost:5000/generate', { question: input });
+      const generatedCode = response.data.result;
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (typeof data.result === 'string') {
-        // Extract code from the result
-        const codeMatch = data.result.match(/```tsx\n([\s\S]*?)```/);
-        if (codeMatch && codeMatch[1]) {
-          const extractedCode = codeMatch[1].trim();
-          setGeneratedCode(extractedCode);
-          setEditableCode(extractedCode);
-          setShowDesign(true);
-        }
-
-        // Extract explanation text
-        const explanation = data.result.replace(/```typescript\n[\s\S]*?```/, '').trim();
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: explanation || 'UI design has been generated successfully!', sender: 'ai' }]);
-      } else {
-        throw new Error('Unexpected response format from server');
-      }
+      setGeneratedCode(generatedCode);
+      setEditableCode(generatedCode);
+      setShowDesign(true);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
     } catch (error) {
       console.error('Error generating UI:', error);
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Error generating UI: ${error instanceof Error ? error.message : 'Unknown error'}`, sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при генерации интерфейса. Пожалуйста, попробуйте еще раз.", sender: 'ai' }]);
     } finally {
       setIsGeneratingUI(false);
     }
   };
 
   const handleCreateNewDesign = () => {
-    setMessages([{ id: Date.now().toString(), text: "Hello! How can I help you generate a UI design today?", sender: 'ai' }])
+    setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
     setGeneratedCode('')
     setEditableCode('')
     setCompiledCode(null)
     setShowDesign(false)
+    setVersions([])
+    setSelectedVersion(null)
   }
 
   const handleOpenDesignHistory = () => {
-    alert('Design history feature is not implemented in this demo.')
+    alert('Функция истории дизайнов не реализована в этой демо-версии.')
   }
 
   const handleCodeChange = (newCode: string) => {
@@ -137,93 +96,136 @@ export function UiGenerator() {
   }
 
   const compileCode = () => {
-    setCompiledCode(<SafeRender code={editableCode} />)
+    try {
+      const wrappedCode = `
+        ${editableCode}
+        return GeneratedComponent();
+      `;
+      
+      const renderFunc = new Function(wrappedCode);
+      const result = renderFunc();
+      setCompiledCode(renderComponent(result));
+    } catch (error) {
+      console.error('Ошибка компиляции кода:', error);
+      setCompiledCode(
+        <div className="text-red-500">
+          Ошибка компиляции кода: {error instanceof Error ? error.message : 'Неизвестная ошибка'}
+          <pre className="mt-2 text-xs whitespace-pre-wrap">{error instanceof Error ? error.stack : ''}</pre>
+        </div>
+      );
+    }
   }
 
-  // Update the SafeRender component
-  const SafeRender = ({ code }: { code: string }) => {
-    const [error, setError] = useState<Error | null>(null);
-    const [renderedOutput, setRenderedOutput] = useState<string | null>(null);
-
-    useEffect(() => {
-      try {
-        // Wrap the code in a function to avoid top-level return issues
-        const wrappedCode = `
-          ${mockDS2}
-          function render() {
-            ${code}
-            return Interface();
-          }
-          return JSON.stringify(render());
-        `;
-        
-        // Use Function constructor instead of AsyncFunction
-        const renderFunc = new Function(wrappedCode);
-        const result = renderFunc();
-        setRenderedOutput(result);
-        setError(null);
-      } catch (err) {
-        console.error('Error in SafeRender:', err);
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-        setRenderedOutput(null);
-      }
-    }, [code]);
-
-    if (error) {
-      return <div className="text-red-500">Error: {error.message}</div>;
+  const renderComponent = (node: any): React.ReactNode => {
+    if (typeof node !== 'object' || node === null) {
+      return String(node);
     }
-
-    if (!renderedOutput) {
-      return <div>Loading...</div>;
+    if (Array.isArray(node)) {
+      return node.map((child, index) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>);
     }
-
-    // Parse the stringified output and render it
-    const renderComponent = (node: any): React.ReactNode => {
-      if (typeof node !== 'object' || node === null) {
-        return String(node);
-      }
-      if (Array.isArray(node)) {
-        return node.map((child, index) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>);
-      }
-      const { type, props, children } = node;
-      return React.createElement(
-        type,
-        { ...props, key: props.key },
-        children ? children.map((child: any, index: number) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>) : null
-      );
-    };
-
-    try {
-      const parsedOutput = JSON.parse(renderedOutput);
-      return <div>{renderComponent(parsedOutput)}</div>;
-    } catch (parseError) {
-      return <div className="text-red-500">Error parsing output: {String(parseError)}</div>;
-    }
+    const { type, props, children } = node;
+    return React.createElement(
+      type,
+      { ...props, key: props.key },
+      children ? children.map((child: any, index: number) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>) : null
+    );
   };
+
+  const handleAddImage = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const newMessage: Message = {
+          id: Date.now().toString(),
+          text: "Изображение загружено",
+          sender: 'user',
+          image: e.target?.result as string
+        }
+        setMessages(prev => [...prev, newMessage])
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handlePaste = (event: React.ClipboardEvent) => {
+    const items = event.clipboardData.items
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile()
+        if (blob) {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const newMessage: Message = {
+              id: Date.now().toString(),
+              text: "Изображение вставлено",
+              sender: 'user',
+              image: e.target?.result as string
+            }
+            setMessages(prev => [...prev, newMessage])
+          }
+          reader.readAsDataURL(blob)
+        }
+      }
+    }
+  }
+
+  const handleDownloadCode = () => {
+    const element = document.createElement("a");
+    const file = new Blob([editableCode], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "generated-code.js";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  }
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(editableCode).then(() => {
+      alert("Код скопирован в буфер обмена!");
+    }, (err) => {
+      console.error('Не удалось скопировать текст: ', err);
+      alert("Не удалось скопировать код. Пожалуйста, попробуйте еще раз.");
+    });
+  }
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <div className={`flex flex-col ${showDesign ? 'w-1/2' : 'w-full'} p-4 transition-all duration-300`}>
+      <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">AI UI Generator</h1>
+          <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleCreateNewDesign}>
+            <Button variant="outline" size="sm" onClick={handleCreateNewDesign} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
               <Plus className="h-4 w-4 mr-2" />
-              New Design
+              Новый Дизайн
             </Button>
-            <Button variant="outline" size="sm" onClick={handleOpenDesignHistory}>
+            <Button variant="outline" size="sm" onClick={handleOpenDesignHistory} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
               <MessageSquare className="h-4 w-4 mr-2" />
-              Design History
+              История Дизайнов
             </Button>
           </div>
         </div>
-        <Card className="flex-grow mb-4 shadow-lg">
+        <Card className="flex-grow mb-4 shadow-lg border-[#0053A0]">
           <ScrollArea className="h-[calc(100vh-200px)]">
             <CardContent>
               {messages.map((message) => (
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
-                    <p className="text-sm">{message.text}</p>
+                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-[#0053A0]'}`}>
+                    {message.image ? (
+                      <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -231,52 +233,108 @@ export function UiGenerator() {
           </ScrollArea>
         </Card>
         <div className="flex gap-2">
-          <Input 
-            placeholder="Describe your UI..." 
+          <Textarea 
+            placeholder="Опишите ваш интерфейс..."
             value={input} 
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            className="flex-grow"
+            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendAndGenerate()}
+            onPaste={handlePaste}
+            className="flex-grow bg-white text-[#0053A0] min-h-[80px] border-[#0053A0]"
           />
-          <Button onClick={handleSend}>
-            <SendIcon className="h-4 w-4" />
-          </Button>
-          {!isGeneratingUI && (
-            <Button onClick={handleGenerateUI}>Generate UI</Button>
-          )}
-          {isGeneratingUI && (
-            <Button disabled>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
+          <div className="flex flex-col gap-2">
+            <Button onClick={handleSendAndGenerate} disabled={isGeneratingUI} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
+              {isGeneratingUI ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Генерация...
+                </>
+              ) : (
+                <>
+                  <SendIcon className="h-4 w-4 mr-2" />
+                  Отправить
+                </>
+              )}
             </Button>
-          )}
+            <Button onClick={handleAddImage} variant="outline" className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]">
+              <ImageIcon className="h-4 w-4 mr-2" />
+              Добавить Изображение
+            </Button>
+          </div>
         </div>
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleImageUpload}
+          accept="image/*"
+        />
       </div>
       {showDesign && (
-        <div className="w-1/2 h-screen overflow-auto bg-white border-l p-4">
+        <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-white border-l border-[#0053A0] p-4 transition-all duration-300`}>
           <Tabs defaultValue="code">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="code">
-                <Code className="h-4 w-4 mr-2" />
-                Code
-              </TabsTrigger>
-              <TabsTrigger value="preview">
-                <Eye className="h-4 w-4 mr-2" />
-                Preview
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex justify-between items-center mb-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="code" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                  <Code className="h-4 w-4 mr-2" />
+                  Код
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Предпросмотр
+                </TabsTrigger>
+              </TabsList>
+              <Button variant="outline" size="icon" onClick={toggleFullscreen} className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]">
+                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            </div>
             <TabsContent value="code">
+              <div className="mb-4">
+                <label htmlFor="version-select" className="block text-sm font-medium text-[#0053A0] mb-1">
+                  Версия:
+                </label>
+                <select
+                  id="version-select"
+                  value={selectedVersion || ''}
+                  onChange={(e) => {
+                    setSelectedVersion(e.target.value)
+                    const selectedVersionCode = versions.find(v => v.id === e.target.value)?.code
+                    if (selectedVersionCode) {
+                      setEditableCode(selectedVersionCode)
+                    }
+                  }}
+                  className="block w-full mt-1 rounded-md border-[#0053A0] shadow-sm focus:border-[#0053A0] focus:ring focus:ring-[#0053A0] focus:ring-opacity-50"
+                >
+                  {versions.map((version, index) => (
+                    <option key={version.id} value={version.id}>
+                      Версия {index + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="relative">
+                <SyntaxHighlighter language="tsx" style={tomorrow} className="rounded-lg">
+                  {editableCode}
+                </SyntaxHighlighter>
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <Button variant="outline" size="icon" onClick={handleDownloadCode} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={handleCopyCode} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               <Textarea
                 value={editableCode}
                 onChange={(e) => handleCodeChange(e.target.value)}
-                className="w-full h-[calc(100vh-200px)] font-mono text-sm"
+                className="w-full h-[calc(100vh-400px)] font-mono text-sm mt-4 border-[#0053A0]"
               />
-              <Button onClick={compileCode} className="mt-4">
-                Compile and Preview
+              <Button onClick={compileCode} className="mt-4 bg-[#0053A0] text-white hover:bg-[#003D75]">
+                Компилировать и Просмотреть
               </Button>
             </TabsContent>
             <TabsContent value="preview">
-              <div className="border rounded-lg p-4 h-[calc(100vh-200px)] overflow-auto">
+              <div className="border border-[#0053A0] rounded-lg p-4 h-[calc(100vh-200px)] overflow-auto">
                 {compiledCode}
               </div>
             </TabsContent>
@@ -286,3 +344,5 @@ export function UiGenerator() {
     </div>
   )
 }
+
+export default UiGenerator

@@ -1,5 +1,9 @@
-import { UiGenerator } from "@/components/ui-generator"
+import UiGenerator from '@/components/ui-generator'
 
-export default function Page() {
-  return <UiGenerator />
+export default function Home() {
+  return (
+    <main>
+      <UiGenerator />
+    </main>
+  )
 }

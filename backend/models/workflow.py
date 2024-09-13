@@ -1,8 +1,6 @@
 import logging
 import os
 from typing import Dict, Any
-import subprocess
-import json
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
@@ -13,26 +11,27 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-
-load_dotenv()
-
 from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER
+from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
 
 load_dotenv()
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FAISS_DB_PATH = os.path.join(BASE_DIR, "../parsers", "data", "faiss_extended")
 openai_api_key = os.environ.get('OPENAI_API_KEY')
-if not openai_api_key:
-    raise ValueError("OPENAI_API_KEY not found in environment variables")
-llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o")
-embeddings = OpenAIEmbeddings(api_key=openai_api_key)
-parse_recursivly_store_faiss()
-db = FAISS.load_local(
-    FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True
-)
+try:
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY not found in environment variables")
+    llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o")
+    embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+    parse_recursivly_store_faiss()
+    db = FAISS.load_local(
+        FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True
+    )
+except Exception as e:
+    logging.error(f"{e}")
+
 
 def format_docs(docs):
     return "\n\n".join([d.page_content for d in docs])
@@ -85,10 +84,9 @@ def funnel(state: InterfaceGeneratingState):
     ))
 
     # app.logger.info(f"cur state is {state}")
-    print(f"\n\ncur res is {res}")
+    print(f"\n\nNeeded comps {res}")
     state.components = res
 
-    print(f"cur state {state}")
     return state
 
 
@@ -121,7 +119,7 @@ def make_structure(state: InterfaceGeneratingState):
     )
     state.json_structure = interface_json
 
-    print(f"\n\ncur res is {interface_json}")
+    print(f"\nInterface json {interface_json}")
     return state
 
 
@@ -155,7 +153,7 @@ def write_code(state: InterfaceGeneratingState):
 
     state.code = interface_code
 
-    print(f"\n\ncur res is {interface_code}")
+    print(f"\nWritten code: {interface_code}")
 
     return state
 
@@ -192,41 +190,37 @@ def revise_code(state: InterfaceGeneratingState):
         }
     )
 
-    state.code = fixes.fixed_code
-    state.json_structure = fixes.fixed_structure
+    print(f"FIxes: {fixes}")
+
+    state.code = fixes["fixed_code"]
+    state.json_structure = fixes["fixed_structure"]
 
     return state
 
 
 def compile_code(state: InterfaceGeneratingState):
-    try:
-        print("COMPILING CODE")
-        result = subprocess.run([r'D:\.dev\nodejs\npx.cmd', '--version'], capture_output=True, text=True)
-        print(f"npx vers res: {result.stdout}")
+    tsx_code = state.code
 
-        result = subprocess.run(
-            [r'D:\.dev\nodejs\npx.cmd', 'ts-node', './models/compiler.tsx'],
-            input=str(state.code),
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print(f"{str(result.stdout)}")
+    validator = TSXValidator()
+    validation_result = validator.validate_tsx(tsx_code)
+
+    print(f"Validatioon res: {validation_result}")
+
+    if not validation_result["valid"]:
         state.errors = ""
-    except subprocess.CalledProcessError as e:
-        print(f"Compilation error: {e.stderr}")
-        state.errors = str(e.stderr)
+    else:
+        state.errors = ",".join(validation_result["errors"])
 
     return state
 
 
 def compile_interface(state: InterfaceGeneratingState):
     compiling_res = state.errors
-    if "ERROR" in compiling_res:
-        return "debug"
+    if not compiling_res:
+        return END
     else:
         # STATES_TMP_DUMP["1"] = state.model_dump()
-        return END
+        return "debug"
 
 
 def generate(query: str) -> str:
@@ -252,10 +246,9 @@ def generate(query: str) -> str:
     config = {"configurable": {"thread_id": "42"}}
 
     state = graph.invoke(cur_state, config)
-    print("\n\n\n\nFINAL RESULT:\n")
+    print("\n\n\nFINAL RESULT:\n")
     print(f"\t{str(state)}")
 
     # print(STATES_TMP_DUMP)
     code = str(state["code"])
     return code
-

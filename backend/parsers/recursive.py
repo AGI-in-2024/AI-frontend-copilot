@@ -13,19 +13,20 @@ from langchain_openai import OpenAIEmbeddings
 # OUTPUT_CSV_PATH = "./data/RAW_COMPONENTS_.csv"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COMPONENTS_DIR = os.path.join(BASE_DIR, "..\\..\\ds-2.0\\src\\components")
+COMPONENTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'backend', 'ds-2.0', 'src', 'components')
 OUTPUT_JSON_PATH = os.path.join(BASE_DIR, "data", "RAW_COMPONENTS_.json")
 OUTPUT_CSV_PATH = os.path.join(BASE_DIR, "data", "RAW_COMPONENTS_.csv")
 FAISS_DB_PATH = os.path.join(BASE_DIR, "data", "faiss_extended")
 
 # Функция для поиска реального пути файла по его импорту
 async def resolve_import_path(import_path: str, current_file_path: str) -> str | None:
-    possible_extensions = ['', 'scss', '.ts', '.tsx', '.d.ts']
+    possible_extensions = ['', '.scss', '.ts', '.tsx', '.d.ts']
 
     if import_path.startswith("@"):
         print(import_path)
-        import_path = import_path.replace('@components', '..\\..\\ds-2.0\\src\\components')
-        component = current_file_path.split("\\")[5] # Current Component name
+        import_path = import_path.replace('@components', os.path.join('..', '..', 'ds-2.0', 'src', 'components'))
+        # Use os.path.basename to get the component name
+        component = os.path.basename(os.path.dirname(current_file_path))
         if not import_path.startswith("@") and component in import_path:
             if os.path.isdir(import_path):
                 tsx_file_path = os.path.join(import_path, 'index.tsx')
@@ -122,8 +123,16 @@ def save_to_json(components_data: dict, output_path: str):
                     "description" in details}
 
     data = {"descriptions": descriptions}
-    with open(output_path, 'w', encoding='utf-8') as json_file:
-        json.dump(data, json_file, ensure_ascii=False, indent=4)
+    
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    try:
+        with open(output_path, 'w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=4)
+        print(f"Successfully saved JSON to {output_path}")
+    except Exception as e:
+        print(f"Error saving JSON to {output_path}: {str(e)}")
 
 
 def ensure_utf8(text):
@@ -178,17 +187,22 @@ async def process_all_components(components_base_path: str):
 
 
 def parse_recursivly_store_faiss():
-
     if not os.path.isfile(OUTPUT_CSV_PATH):
+        print(f"CSV file not found at {OUTPUT_CSV_PATH}. Processing components...")
         asyncio.run(process_all_components(COMPONENTS_DIR))
+    else:
+        print(f"CSV file found at {OUTPUT_CSV_PATH}")
+
     if not os.path.isdir(FAISS_DB_PATH):
+        print(f"FAISS database not found at {FAISS_DB_PATH}. Creating new database...")
         loader = CSVLoader(file_path=OUTPUT_CSV_PATH, autodetect_encoding=True)
         documents = loader.load()
         embeddings = OpenAIEmbeddings()
-        db = FAISS.from_documents(
-            documents, embeddings)
-
+        db = FAISS.from_documents(documents, embeddings)
         db.save_local(FAISS_DB_PATH)
+        print(f"FAISS database created and saved to {FAISS_DB_PATH}")
+    else:
+        print(f"FAISS database found at {FAISS_DB_PATH}")
 
 
 def get_comps_descs() -> str:

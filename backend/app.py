@@ -1,11 +1,12 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import traceback
 
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app, resources={r"/generate": {"origins": "http://localhost:3000"}})
-
+CORS(app, resources={r"/generate": {"origins": "http://your-frontend-domain.com"}})  # Allow all origins for testing
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
@@ -19,6 +20,8 @@ def generate_ui():
 
     try:
         app.logger.info(f"Question: {question}")
+        app.logger.info(f"Current working directory: {os.getcwd()}")
+        app.logger.info(f"Environment variables: {os.environ}")
 
         result = generate(question)
         app.logger.info(f"Result: {result}")
@@ -28,6 +31,7 @@ def generate_ui():
         app.logger.error(f"Error in generate_ui: {str(e)}")
         app.logger.error(f"Error type: {type(e)}")
         app.logger.error(f"Error args: {e.args}")
+        app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 

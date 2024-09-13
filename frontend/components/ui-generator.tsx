@@ -67,11 +67,12 @@ const UiGenerator = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     try {
-      const response = await axios.post('http://localhost:5000/generate', { question: input }, {
+      const response = await axios.post('http://185.229.224.98:5000/generate', { question: input }, {
         headers: {
           'Content-Type': 'application/json',
         },
       });
+      console.log('API Response:', response.data);  // Add this line for debugging
       const generatedCode = response.data.result;
 
       setGeneratedCode(generatedCode);
@@ -80,6 +81,9 @@ const UiGenerator = () => {
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
     } catch (error) {
       console.error('Error generating UI:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', error.response?.data);
+      }
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при генерации интерфейса. Пожалуйста, попробуйте еще раз.", sender: 'ai' }]);
     } finally {
       setIsGeneratingUI(false);
@@ -324,7 +328,7 @@ const UiGenerator = () => {
                 <Editor
                   value={editableCode}
                   onValueChange={handleCodeChange}
-                  highlight={(code) => highlight(code, languages.tsx)}
+                  highlight={(code) => highlight(code, languages.tsx, 'tsx')}
                   padding={20}
                   style={{
                     fontFamily: '"Fira Code", "Fira Mono", monospace',

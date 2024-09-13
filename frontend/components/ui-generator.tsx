@@ -68,7 +68,7 @@ const UiGenerator = () => {
     
     try {
       console.log('Sending request to backend...');
-      const response = await axios.post('http://185.229.224.98:5000/generate', { question: input }, {
+      const response = await axios.post('http://localhost:5000/generate', { question: input }, {
         headers: {
           'Content-Type': 'application/json',
         },

@@ -10,5 +10,5 @@ npm run dev
 Запуск бэкенда:
 ```
 cd backend 
-python app.py
+flask run
 ```

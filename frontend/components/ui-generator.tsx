@@ -8,24 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import dynamic from 'next/dynamic'
-
-// Updated mock implementation
-const mockDS2 = `
-const React = {
-  createElement: (type, props, ...children) => ({type, props, children}),
-  Fragment: 'Fragment'
-};
-
-const Typography = ({variant, color, children}) => 
-  React.createElement('div', {style: {fontWeight: variant.includes('Bold') ? 'bold' : 'normal'}}, children);
-
-const ds2 = {
-  Typography
-};
-
-// Mock any other components you need here
-`;
+import { Sandbox } from '@e2b/sdk'
 
 interface Message {
   id: string
@@ -35,7 +18,7 @@ interface Message {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
-export function UiGenerator() {
+export default function UiGenerator() {
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', text: "Hello! How can I help you generate a UI design today?", sender: 'ai' },
   ])
@@ -43,8 +26,40 @@ export function UiGenerator() {
   const [isGeneratingUI, setIsGeneratingUI] = useState(false)
   const [generatedCode, setGeneratedCode] = useState('')
   const [editableCode, setEditableCode] = useState('')
-  const [compiledCode, setCompiledCode] = useState<React.ReactNode | null>(null)
   const [showDesign, setShowDesign] = useState(false)
+  const [compileTrigger, setCompileTrigger] = useState(0)
+  const [compiledCode, setCompiledCode] = useState<React.ReactNode | null>(null)
+  const [sandbox, setSandbox] = useState<Sandbox | null>(null)
+
+  useEffect(() => {
+    async function initializeSandbox() {
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_E2B_API_KEY;
+        if (!apiKey) {
+          throw new Error('E2B API key is not set in environment variables');
+        }
+        
+        const newSandbox = await Sandbox.create({ 
+          apiKey,
+          template: 'base'
+        });
+        setSandbox(newSandbox);
+      } catch (error) {
+        console.error('Error initializing sandbox:', error);
+        setMessages(prev => [...prev, { 
+          id: Date.now().toString(), 
+          text: `Error initializing sandbox: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your E2B API key.`, 
+          sender: 'ai' 
+        }]);
+      }
+    }
+    initializeSandbox();
+    return () => {
+      if (sandbox) {
+        sandbox.close()
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (generatedCode) {
@@ -89,11 +104,12 @@ export function UiGenerator() {
           question: input,
           code_sample: `
             import React from 'react';
-            import { ComponentName1, ComponentName2 } from '@nlmk/ds-2.0';
-            
+            import { Input, Button, Card, Typography } from '@nlmk/ds-2.0';
+
             const Interface = () => {
               return (
                 <div>
+                  {/* Generated UI components will go here */}
                 </div>
               );
             };
@@ -127,7 +143,7 @@ export function UiGenerator() {
       }
     } catch (error) {
       console.error('Error generating UI:', error);
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Error generating UI: ${error instanceof Error ? error.message : 'Unknown error'}`, sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Error generating UI: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again with a different description.`, sender: 'ai' }]);
     } finally {
       setIsGeneratingUI(false);
     }
@@ -137,7 +153,6 @@ export function UiGenerator() {
     setMessages([{ id: Date.now().toString(), text: "Hello! How can I help you generate a UI design today?", sender: 'ai' }])
     setGeneratedCode('')
     setEditableCode('')
-    setCompiledCode(null)
     setShowDesign(false)
   }
 
@@ -149,70 +164,75 @@ export function UiGenerator() {
     setEditableCode(newCode)
   }
 
-  const compileCode = () => {
-    setCompiledCode(<SafeRender code={editableCode} />)
-  }
-
-  // Update the SafeRender component
-  const SafeRender = ({ code }: { code: string }) => {
-    const [error, setError] = useState<Error | null>(null);
-    const [renderedOutput, setRenderedOutput] = useState<string | null>(null);
-
-    useEffect(() => {
-      try {
-        // Wrap the code in a function to avoid top-level return issues
-        const wrappedCode = `
-          ${mockDS2}
-          function render() {
-            ${code}
-            return Interface();
-          }
-          return JSON.stringify(render());
-        `;
-        
-        // Use Function constructor instead of AsyncFunction
-        const renderFunc = new Function(wrappedCode);
-        const result = renderFunc();
-        setRenderedOutput(result);
-        setError(null);
-      } catch (err) {
-        console.error('Error in SafeRender:', err);
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-        setRenderedOutput(null);
-      }
-    }, [code]);
-
-    if (error) {
-      return <div className="text-red-500">Error: {error.message}</div>;
+  const compileCode = async () => {
+    if (!sandbox) {
+      setCompiledCode(<div>Sandbox is not initialized. Please try again.</div>)
+      return
     }
-
-    if (!renderedOutput) {
-      return <div>Loading...</div>;
-    }
-
-    // Parse the stringified output and render it
-    const renderComponent = (node: any): React.ReactNode => {
-      if (typeof node !== 'object' || node === null) {
-        return String(node);
-      }
-      if (Array.isArray(node)) {
-        return node.map((child, index) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>);
-      }
-      const { type, props, children } = node;
-      return React.createElement(
-        type,
-        { ...props, key: props.key },
-        children ? children.map((child: any, index: number) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>) : null
-      );
-    };
 
     try {
-      const parsedOutput = JSON.parse(renderedOutput);
-      return <div>{renderComponent(parsedOutput)}</div>;
-    } catch (parseError) {
-      return <div className="text-red-500">Error parsing output: {String(parseError)}</div>;
+      setCompiledCode(<div>Compiling code...</div>)
+      
+      // Install necessary packages
+      const installProcess = await sandbox.process.start({
+        cmd: 'npm install react react-dom @nlmk/ds-2.0'
+      });
+      await installProcess.wait();
+
+      // Create a temporary file with the code
+      await sandbox.filesystem.write('/app/component.js', `
+        const React = require('react');
+        const ReactDOMServer = require('react-dom/server');
+        const DS = require('@nlmk/ds-2.0');
+
+        ${editableCode}
+
+        console.log(ReactDOMServer.renderToString(React.createElement(Interface)));
+      `);
+
+      // Execute the code
+      const execProcess = await sandbox.process.start({
+        cmd: 'node /app/component.js'
+      });
+      await execProcess.wait();
+
+      if (execProcess.exit_code !== 0) {
+        setCompiledCode(<div>Error: {execProcess.output.stderr}</div>)
+      } else {
+        // The output will be a string of HTML
+        setCompiledCode(<div dangerouslySetInnerHTML={{ __html: execProcess.output.stdout }} />)
+      }
+    } catch (error) {
+      console.error('Error compiling code:', error)
+      setCompiledCode(<div>Error compiling code: {error instanceof Error ? error.message : 'Unknown error'}</div>)
     }
-  };
+  }
+
+  const renderAst = (node: any): React.ReactNode => {
+    if (typeof node !== 'object' || node === null) {
+      return String(node)
+    }
+    if (Array.isArray(node)) {
+      return node.map((child, index) => <React.Fragment key={index}>{renderAst(child)}</React.Fragment>)
+    }
+    switch (node.type) {
+      case 'Module':
+        return node.body.map((child: any, index: number) => <React.Fragment key={index}>{renderAst(child)}</React.Fragment>)
+      case 'FunctionDef':
+      case 'ClassDef':
+        return <div key={node.name}>{node.name}: {node.body.map((child: any, index: number) => <React.Fragment key={index}>{renderAst(child)}</React.Fragment>)}</div>
+      case 'Return':
+        return <div>return {renderAst(node.value)}</div>
+      case 'Call':
+        return <div>{renderAst(node.func)}({node.args.map((arg: any, index: number) => <React.Fragment key={index}>{renderAst(arg)}</React.Fragment>)})</div>
+      case 'Name':
+        return <span>{node.id}</span>
+      case 'Str':
+        return <span>"{node.s}"</span>
+      default:
+        return <span>{JSON.stringify(node)}</span>
+    }
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -254,15 +274,16 @@ export function UiGenerator() {
           <Button onClick={handleSend}>
             <SendIcon className="h-4 w-4" />
           </Button>
-          {!isGeneratingUI && (
-            <Button onClick={handleGenerateUI}>Generate UI</Button>
-          )}
-          {isGeneratingUI && (
-            <Button disabled>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </Button>
-          )}
+          <Button onClick={handleGenerateUI} disabled={isGeneratingUI}>
+            {isGeneratingUI ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              'Generate UI'
+            )}
+          </Button>
         </div>
       </div>
       {showDesign && (

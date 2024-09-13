@@ -1,15 +1,20 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code, Image as ImageIcon, Maximize2, Download, Copy, Minimize2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import Editor from 'react-simple-code-editor'
+import { highlight, languages } from 'prismjs'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-jsx'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-tsx'
+import 'prismjs/themes/prism-tomorrow.css'
 import axios from 'axios';
+import { Textarea } from "@/components/ui/textarea";
 
 interface Message {
   id: string
@@ -91,9 +96,9 @@ const UiGenerator = () => {
     alert('Функция истории дизайнов не реализована в этой демо-версии.')
   }
 
-  const handleCodeChange = (newCode: string) => {
-    setEditableCode(newCode)
-  }
+  const handleCodeChange = useCallback((code: string) => {
+    setEditableCode(code)
+  }, [])
 
   const compileCode = () => {
     try {
@@ -311,25 +316,33 @@ const UiGenerator = () => {
                   ))}
                 </select>
               </div>
-              <div className="relative">
-                <SyntaxHighlighter language="tsx" style={tomorrow} className="rounded-lg">
-                  {editableCode}
-                </SyntaxHighlighter>
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <Button variant="outline" size="icon" onClick={handleDownloadCode} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
+              <div className="relative border-2 border-[#0053A0] rounded-lg overflow-hidden shadow-lg">
+                <Editor
+                  value={editableCode}
+                  onValueChange={handleCodeChange}
+                  highlight={(code) => highlight(code, languages.tsx)}
+                  padding={20}
+                  style={{
+                    fontFamily: '"Fira Code", "Fira Mono", monospace',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    height: 'calc(100vh - 350px)',
+                    overflow: 'auto',
+                    backgroundColor: '#f8f9fa',
+                  }}
+                  textareaClassName="focus:outline-none"
+                  className="min-h-[400px] focus-within:shadow-outline-blue"
+                />
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <Button variant="outline" size="icon" onClick={handleDownloadCode} className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]">
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={handleCopyCode} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
+                  <Button variant="outline" size="icon" onClick={handleCopyCode} className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]">
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-              <Textarea
-                value={editableCode}
-                onChange={(e) => handleCodeChange(e.target.value)}
-                className="w-full h-[calc(100vh-400px)] font-mono text-sm mt-4 border-[#0053A0]"
-              />
-              <Button onClick={compileCode} className="mt-4 bg-[#0053A0] text-white hover:bg-[#003D75]">
+              <Button onClick={compileCode} className="mt-6 bg-[#0053A0] text-white hover:bg-[#003D75]">
                 Компилировать и Просмотреть
               </Button>
             </TabsContent>

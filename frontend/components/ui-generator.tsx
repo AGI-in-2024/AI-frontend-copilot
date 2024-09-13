@@ -86,20 +86,7 @@ export function UiGenerator() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          question: input,
-          code_sample: `
-            import React from 'react';
-            import { ComponentName1, ComponentName2 } from '@nlmk/ds-2.0';
-            
-            const Interface = () => {
-              return (
-                <div>
-                </div>
-              );
-            };
-            
-            export default Interface;
-          `
+          question: input
         }),
       });
 
@@ -111,7 +98,7 @@ export function UiGenerator() {
       const data = await response.json();
       if (typeof data.result === 'string') {
         // Extract code from the result
-        const codeMatch = data.result.match(/```typescript\n([\s\S]*?)```/);
+        const codeMatch = data.result.match(/```tsx\n([\s\S]*?)```/);
         if (codeMatch && codeMatch[1]) {
           const extractedCode = codeMatch[1].trim();
           setGeneratedCode(extractedCode);

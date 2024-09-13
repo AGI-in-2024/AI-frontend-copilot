@@ -18,8 +18,7 @@ npm run dev
 
 3. Запускаем бекенд
 ```
-cd backend 
-flask run
+python3 -m backend.app
 ```
 
 4. Открываем сервис [http://localhost:3000](http://localhost:3000)

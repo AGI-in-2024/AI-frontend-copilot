@@ -25,6 +25,70 @@ FUNNEL = ChatPromptTemplate.from_messages(
     ]
 )
 
+FUNNEL_ITER = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a highly experienced front-end TypeScript developer with a deep understanding of complex React component libraries. Your task is to help modify and improve an existing interface structure based on the user's new request. You will evaluate the changes and select appropriate components from the NLMK React design system."
+        ),
+        (
+            "human",
+            """User's previous query: {previous_query}
+               User's current query for improvement: {new_query}
+               Existing interface structure: {existing_interface_json}
+               List of NLMK components: {components}
+
+               Based on the new query, determine what needs to be changed in the existing structure and suggest any new or modified components that should be added or updated.
+
+               Your response must be a strictly formatted JSON:
+               instructions: {
+                   "action": "add | modify | remove",
+                   "component": "Component Name",  # название компонента из NLMK
+                   "reason": "User query mapping",  # какое требование пользователя покрывает этот компонент
+               }
+               components_to_modify: [
+                   dict(
+                       "title": "Component Name",  # название компонента из NLMK
+                       "reason": "User query mapping"  # какое требование пользователя покрывает этот компонент
+                   ),
+                   ...
+               ]
+            """
+        ),
+    ]
+)
+
+INTERFACE_JSON_ITER = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a highly skilled front-end TypeScript developer specializing in React. You will modify the existing interface structure by applying changes to the components based on user input. Your goal is to update the current structure using NLMK React components."
+        ),
+        (
+            "human",
+            """User's current query:
+               {new_query}
+               Existing interface structure: {existing_interface_json}
+               Needed changes and components to be modified: {modification_instructions}
+
+               Here are the details of the components you need to modify:
+               {components_info}
+
+               Update the current structure and return a strictly formatted JSON:
+               modified_interface: [
+                   dict(
+                       "title": "Component Name",                   # название компонента из NLMK
+                       "used_reason": "Why it's used",  # причина использования компонента
+                       "props": list[Dict[str, Any]],               # инициализированные пропсы компонента
+                       "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список дочерних элементов                      
+                   )
+               ]
+            """
+        ),
+    ]
+)
+
+
 INTERFACE_JSON = ChatPromptTemplate.from_messages(
     [
         (
@@ -84,7 +148,7 @@ CODER = ChatPromptTemplate.from_messages(
 
 
             YOU MUST USE ONLY PURE react and COMPONENTS from '@nlmk/ds-2.0' that i gave to you!
-
+            DONT USE ANY imported STYLES or any!
 
             The final code should look like this:
             {code_sample}

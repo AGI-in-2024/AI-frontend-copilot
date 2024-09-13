@@ -1,6 +1,8 @@
 import logging
 import os
 from typing import Dict, Any
+import subprocess
+import json
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
@@ -16,6 +18,9 @@ load_dotenv()
 
 from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
+
+load_dotenv()
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FAISS_DB_PATH = os.path.join(BASE_DIR, "../parsers", "data", "faiss_extended")
@@ -80,17 +85,14 @@ def funnel(state: InterfaceGeneratingState):
     ))
 
     # app.logger.info(f"cur state is {state}")
-    print((f"\n\ncur res is {res}"))
+    print(f"\n\ncur res is {res}")
     state.components = res
 
-    # app.logger.info(f"interface out {res}")
-    # app.logger.info(f"cur state is {state}")
     print(f"cur state {state}")
     return state
 
 
 def make_structure(state: InterfaceGeneratingState):
-
     interface_json_chain = (
             {
                 "components_info": lambda x: format_docs(
@@ -110,7 +112,6 @@ def make_structure(state: InterfaceGeneratingState):
             | llm
             | JsonOutputParser(pydantic_object=InterfaceJson)
     )
-    # print(state.components.needed_components)
 
     interface_json = interface_json_chain.invoke(
         {
@@ -118,17 +119,13 @@ def make_structure(state: InterfaceGeneratingState):
             "needed_components": state.components.needed_components
         }
     )
-    # app.logger.info(f"cur state is {state}")
-    # app.logger.info(f"interface out {interface_json}")
     state.json_structure = interface_json
 
-    print((f"\n\ncur res is {interface_json}"))
-    # app.logger.info(f"cur state is {state}")
+    print(f"\n\ncur res is {interface_json}")
     return state
 
 
 def write_code(state: InterfaceGeneratingState):
-
     interface_coder_chain = (
             {
                 "interface_components": lambda x: format_docs(
@@ -156,12 +153,9 @@ def write_code(state: InterfaceGeneratingState):
         "code_sample": state.code
     })
 
-    # app.logger.info(f"interface code {interface_code}")
     state.code = interface_code
 
-    print((f"\n\ncur res is {interface_code}"))
-    # app.logger.info(f"cur state is {state}")
-
+    print(f"\n\ncur res is {interface_code}")
 
     return state
 
@@ -189,7 +183,7 @@ def revise_code(state: InterfaceGeneratingState):
             | JsonOutputParser(pydantic_object=RefactoredInterface)
     )
 
-    FIXES = interface_debugger_chain.invoke(
+    fixes = interface_debugger_chain.invoke(
         {
             "query": state.query,
             "json_structure": state.json_structure,
@@ -198,32 +192,70 @@ def revise_code(state: InterfaceGeneratingState):
         }
     )
 
-    state.code = FIXES.fixed_code
-    state.json_structure = FIXES.fixed_structure
+    state.code = fixes.fixed_code
+    state.json_structure = fixes.fixed_structure
 
     return state
 
 
-def generate(input: str) -> str:
-    cur_state = InterfaceGeneratingState(query=input)
+def compile_code(state: InterfaceGeneratingState):
+    try:
+        print("COMPILING CODE")
+        result = subprocess.run([r'D:\.dev\nodejs\npx.cmd', '--version'], capture_output=True, text=True)
+        print(f"npx vers res: {result.stdout}")
+
+        result = subprocess.run(
+            [r'D:\.dev\nodejs\npx.cmd', 'ts-node', './models/compiler.tsx'],
+            input=str(state.code),
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"{str(result.stdout)}")
+        state.errors = ""
+    except subprocess.CalledProcessError as e:
+        print(f"Compilation error: {e.stderr}")
+        state.errors = str(e.stderr)
+
+    return state
+
+
+def compile_interface(state: InterfaceGeneratingState):
+    compiling_res = state.errors
+    if "ERROR" in compiling_res:
+        return "debug"
+    else:
+        # STATES_TMP_DUMP["1"] = state.model_dump()
+        return END
+
+
+def generate(query: str) -> str:
+    cur_state = InterfaceGeneratingState(query=query)
     builder = StateGraph(InterfaceGeneratingState)
     builder.add_node("funnel", funnel)
     builder.add_node("interface", make_structure)
     builder.add_node("coder", write_code)
-    # builder.add_node("debug", revise_code)
+    builder.add_node("compiler", compile_code)
+    builder.add_node("debug", revise_code)
 
     builder.set_entry_point("funnel")
     builder.add_edge("funnel", "interface")
     builder.add_edge("interface", "coder")
-    builder.add_edge("coder", END)
+    builder.add_edge("coder", "compiler")
+    builder.add_conditional_edges(
+        'compiler',
+        compile_interface
+    )
 
     memory = MemorySaver()
     graph = builder.compile(checkpointer=memory)
     config = {"configurable": {"thread_id": "42"}}
+
     state = graph.invoke(cur_state, config)
-    print(f"\n\ncur state is {state}")
+    print("\n\n\n\nFINAL RESULT:\n")
+    print(f"\t{str(state)}")
 
-
+    # print(STATES_TMP_DUMP)
     code = str(state["code"])
     return code
 

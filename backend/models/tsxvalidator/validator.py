@@ -96,7 +96,7 @@ class TSXValidator:
     def _install_dependencies(self):
         logger.info("Начало установки зависимостей")
         try:
-            cmd = f"{self.npm_path} install"
+            cmd = [self.npm_path, "install"]
             result = self._run_command(cmd)
             logger.info("Зависимости успешно установлены")
             logger.debug(f"Вывод npm install: {result.stdout}")
@@ -105,59 +105,29 @@ class TSXValidator:
             raise RuntimeError("Не удалось установить зависимости")
 
     def _check_typescript(self) -> Optional[str]:
-        logger.info("Проверка наличия TypeScript")
+        logger.info("Checking for TypeScript compiler")
+        # First, check local node_modules
         tsc_path = self.base_dir / "node_modules" / ".bin" / "tsc"
         if self.use_shell:
             tsc_path = tsc_path.with_suffix('.cmd')
 
         if tsc_path.exists():
-            logger.info(f"TypeScript найден: {tsc_path}")
+            logger.info(f"TypeScript found at: {tsc_path}")
             return str(tsc_path)
         else:
-            logger.error(f"TypeScript не найден по пути: {tsc_path}")
-            return None
-
-    def validate_tsx(self, tsx_code: str) -> Dict[str, Any]:
-        logger.info("Начало валидации TSX кода")
-        unique_id = uuid.uuid4().hex
-        temp_file = self.base_dir / "src" / f"temp_{unique_id}.tsx"
-
-        try:
-            with open(temp_file, "w", encoding='utf-8') as f:
-                f.write(tsx_code)
-            logger.debug(f"Временный файл создан: {temp_file}")
-
-            self._log_file_contents(temp_file)
-
-            abs_temp_file = temp_file.resolve()
-
-            cmd = (f"{self.tsc_path} --noEmit --jsx react-jsx "
-                   f"--esModuleInterop --allowSyntheticDefaultImports "
-                   f"--skipLibCheck {abs_temp_file}")
-            logger.debug(f"Выполнение команды: {cmd}")
-
-            result = self._run_command(cmd)
-
-            logger.debug(f"Вывод команды: {result.stdout}")
-            logger.debug(f"Ошибки команды: {result.stderr}")
-            logger.debug(f"Код возврата: {result.returncode}")
-
-            parsed_errors = self._parse_errors(result.stderr or result.stdout)
-            if not parsed_errors:
-                logger.info("Валидация TSX кода прошла успешно")
-                return {"valid": True, "errors": []}
+            # Fallback to global tsc
+            tsc_global = shutil.which("tsc")
+            if tsc_global:
+                logger.info(f"Global TypeScript found at: {tsc_global}")
+                return tsc_global
             else:
-                logger.warning("Найдены ошибки при валидации TSX кода")
-                return {"valid": False, "errors": parsed_errors}
-        except Exception as e:
-            logger.exception("Непредвиденная ошибка во время валидации")
-            return {"valid": False, "errors": [str(e)]}
-        finally:
-            self._clean_up(temp_file)
+                logger.error("TypeScript compiler not found")
+                return None
 
-    def _run_command(self, cmd: str) -> subprocess.CompletedProcess:
+    def _run_command(self, cmd: List[str]) -> subprocess.CompletedProcess:
         env = os.environ.copy()
-        env['PATH'] = f"{self.base_dir / 'node_modules' / '.bin'}{os.pathsep}{env['PATH']}"
+        env['PATH'] = f"{self.base_dir / 'node_modules' / '.bin'}{os.pathsep}{env.get('PATH', '')}"
+        logger.debug(f"Running command: {' '.join(cmd)}")
         return subprocess.run(
             cmd,
             shell=self.use_shell,
@@ -167,6 +137,53 @@ class TSXValidator:
             check=False,
             env=env
         )
+
+    def validate_tsx(self, tsx_code: str) -> Dict[str, Any]:
+        logger.info("Starting TSX code validation")
+        unique_id = uuid.uuid4().hex
+        temp_file = self.base_dir / "src" / f"temp_{unique_id}.tsx"
+
+        try:
+            with open(temp_file, "w", encoding='utf-8') as f:
+                f.write(tsx_code)
+            logger.debug(f"Temporary file created: {temp_file}")
+
+            self._log_file_contents(temp_file)
+
+            abs_temp_file = temp_file.resolve()
+
+            if not self.tsc_path:
+                raise RuntimeError("TypeScript compiler not found")
+
+            cmd = [
+                self.tsc_path,
+                "--noEmit",
+                "--jsx", "react-jsx",
+                "--esModuleInterop",
+                "--allowSyntheticDefaultImports",
+                "--skipLibCheck",
+                str(abs_temp_file)
+            ]
+            logger.debug(f"Executing command: {' '.join(cmd)}")
+
+            result = self._run_command(cmd)
+
+            logger.debug(f"Command output: {result.stdout}")
+            logger.debug(f"Command errors: {result.stderr}")
+            logger.debug(f"Return code: {result.returncode}")
+
+            parsed_errors = self._parse_errors(result.stderr or result.stdout)
+            if not parsed_errors:
+                logger.info("TSX code validation successful")
+                return {"valid": True, "errors": []}
+            else:
+                logger.warning("Errors found during TSX code validation")
+                return {"valid": False, "errors": parsed_errors}
+        except Exception as e:
+            logger.exception("Unexpected error during validation")
+            return {"valid": False, "errors": [str(e)]}
+        finally:
+            self._clean_up(temp_file)
 
     def _log_file_contents(self, file_path: Path):
         try:

@@ -120,7 +120,20 @@ const babelCompile = (code: string, filename: string) =>
   transform(code, {
     filename: filename,
     presets: [
-      ["react", { runtime: "automatic" }],
-      ["typescript", { isTSX: true, allExtensions: true }]
+      ["react", { runtime: "classic" }],
+      ["typescript", { isTSX: true, allExtensions: true }],
+    ],
+    plugins: [
+      [
+        "transform-modules-umd",
+        {
+          globals: {
+            react: "React",
+            "react-dom": "ReactDOM",
+            "@nlmk/ds-2.0": "NLMKDS",  // Added '@nlmk/ds-2.0' to globals
+          },
+          exactGlobals: true, // Ensures modules use the specified globals
+        },
+      ],
     ],
   });

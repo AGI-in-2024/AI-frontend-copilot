@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from typing import Dict, Any
 
 from langchain_community.vectorstores import FAISS
@@ -23,7 +24,7 @@ openai_api_key = os.environ.get('OPENAI_API_KEY')
 try:
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
-    llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o")
+    llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o-mini")
     embeddings = OpenAIEmbeddings(api_key=openai_api_key)
     parse_recursivly_store_faiss()
     db = FAISS.load_local(
@@ -51,7 +52,7 @@ class InterfaceComponent(BaseModel):
     title: str = Field(description="Название компонента")
     props: list[Dict[str, Any] | None] | Dict[str, Any] = Field(description="Список пропсов и их значений")
     used_reason: str = Field(description="Какую функцию выполняет этот компонент в данном месте")
-    children: list[Dict[str, Any] | None] = Field(
+    children: list[Dict[str, Any] | Any] | Any = Field(
         description="Список инициализированных дочерних элементов далее по иерархии ")
 
 
@@ -200,16 +201,17 @@ def revise_code(state: InterfaceGeneratingState):
 
 def compile_code(state: InterfaceGeneratingState):
     tsx_code = state.code
+    clean_code = re.sub(r"```tsx\s*|\s*```", "", tsx_code)
 
     validator = TSXValidator()
-    validation_result = validator.validate_tsx(tsx_code)
+    validation_result = validator.validate_tsx(clean_code.strip())
 
     print(f"Validatioon res: {validation_result}")
 
-    if not validation_result["valid"]:
+    if validation_result["valid"]:
         state.errors = ""
     else:
-        state.errors = ",".join(validation_result["errors"])
+        state.errors = "ERRORS: \n" + str(validation_result["errors"])
 
     return state
 
@@ -240,6 +242,7 @@ def generate(query: str) -> str:
         'compiler',
         compile_interface
     )
+    builder.add_edge("debug", "compiler")
 
     memory = MemorySaver()
     graph = builder.compile(checkpointer=memory)

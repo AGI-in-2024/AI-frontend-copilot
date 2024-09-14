@@ -158,6 +158,46 @@ CODER = ChatPromptTemplate.from_messages(
     ]
 )
 
+CODER_ITER = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to update existing React code by modifying it according to a new JSON structure that describes changes to the user interface. The JSON contains information about the components, their props, and their hierarchical structure. Your job is to carefully merge these changes into the previous code while maintaining its functionality."
+        ),
+        (
+            "human",
+            """
+            It is a user's query: 
+            {query}
+
+            Here is the previous code:
+            {previous_code}
+
+            Here is the updated JSON structure that describes the new interface:
+            {json_structure}
+
+            ADDITIONAL SOURCE FILES with extremely useful info about these Components: Types, Styles, and Code examples:
+            {interface_components}
+
+            You MUST update the previous code according to the new JSON structure and generate working React code using functional NLMK components (as described in JSON). Make sure to:
+            - Modify only the components that need updating, but preserve any existing code that doesn't need changes.
+            - Use TypeScript.
+            - Reflect the updated component hierarchy as per the "children" field in the JSON.
+            - If new props are passed in the JSON, ensure they are included in the component invocation and check their correctness with the help of the SOURCE FILES.
+            - Add Styles from the NLMK library to ensure that interface components are visually structured and correctly placed.
+            - Ensure the final code is formatted correctly for use in a TypeScript React project.
+
+            YOU MUST USE ONLY PURE React and COMPONENTS from '@nlmk/ds-2.0' that I gave to you!
+            DO NOT USE ANY imported STYLES or external libraries!
+
+            The final updated code should look like this:
+            {code_sample}
+            """
+        ),
+    ]
+)
+
+
 code_sample = """
             ```tsx
             // Import necessary components
@@ -213,7 +253,14 @@ DEBUGGER = ChatPromptTemplate.from_messages(
             Return the result as a JSON object with the following structure:
             dict(
                 "fixed_code": "<corrected TypeScript code as a string>",
-                "fixed_structure": "<corrected JSON structure>"
+                "fixed_structure": initialized_components: [
+                        dict(
+                            "title": "Component Name",                   # название компонента из NLMK
+                            "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
+                            "props": list[Dict[str, Any]],               # инициализированные пропсы компонента
+                            "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список инициализированных элементов                    
+                        )
+                    ]
             ))
             """
         ),

@@ -70,7 +70,7 @@ class InterfaceGeneratingState(BaseModel):
     components: FunnelOutput | None = Field(default=None, description="Релевантные для интерфейса компоненты")
     json_structure: InterfaceJson | None = Field(default=None, description="Структура интерфейса")
     code: str | None = Field(default=code_sample, description="Код компонента")
-    errors: str | None = Field(default=None, description="Ошибки вознкшие при генерации кода")
+    errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
 
 def funnel(state: InterfaceGeneratingState):
@@ -102,9 +102,9 @@ def make_structure(state: InterfaceGeneratingState):
                     db.as_retriever(
                         search_type="mmr",
                         search_kwargs={
-                            'k': min(len(x["needed_components"]) * 2, 15),
+                               'k': min(len(x["needed_components"]) * 2, 10),
                             'fetch_k': min(len(x["needed_components"]) * 4, 42),
-                            'lambda_mult': 0.35
+                            'lambda_mult': 0.2
                         }
                     ).invoke(str(x["needed_components"]))
                 ),
@@ -135,8 +135,8 @@ def write_code(state: InterfaceGeneratingState):
                     db.as_retriever(
                         search_type="mmr",
                         search_kwargs={
-                            'k': 10,
-                            'fetch_k': 25,
+                            'k': 7,
+                            'fetch_k': 20,
                             'lamda_mult': 0.4
                         }
                     ).invoke(str(x["json_structure"]))
@@ -168,13 +168,13 @@ def revise_code(state: InterfaceGeneratingState):
             {
                 "useful_info": lambda x: format_docs(
                     db.as_retriever(
-                        search_type="similarity_score_threshold",
+                        search_type="mmr",
                         search_kwargs={
-                            'k': 4,
-                            'fetch_k': 20,
-                            'score_threshold': 0.4
+                            'k': 3,
+                            'fetch_k': 10,
+                            'lambda_mult': 0.25
                         }
-                    ).invoke(str(x["errors_list"]))
+                    ).invoke(str(x["errors_list"]) + x["interface_code"])
                 ),  # Get context and format it
                 "query": lambda x: x["query"],  # Pass the question unchanged
                 "json_structure": lambda x: x["json_structure"],
@@ -185,6 +185,8 @@ def revise_code(state: InterfaceGeneratingState):
             | llm
             | JsonOutputParser(pydantic_object=RefactoredInterface)
     )
+
+
 
     fixes = interface_debugger_chain.invoke(
         {
@@ -206,7 +208,7 @@ def revise_code(state: InterfaceGeneratingState):
 def compile_code(state: InterfaceGeneratingState):
     tsx_code = state.code
     clean_code = re.sub(r"```tsx\s*|\s*```", "", tsx_code)
-
+    state.code = clean_code
     validator = TSXValidator()
     validation_result = validator.validate_tsx(clean_code.strip())
 

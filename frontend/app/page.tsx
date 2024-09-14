@@ -1,9 +1,9 @@
-import UiGenerator from '@/components/ui-generator'
+import UiGeneratorWrapper from '@/components/UiGeneratorWrapper'
 
 export default function Home() {
   return (
     <main>
-      <UiGenerator />
+      <UiGeneratorWrapper />
     </main>
   )
 }

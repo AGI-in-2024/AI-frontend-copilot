@@ -74,6 +74,10 @@ class InterfaceGeneratingState(BaseModel):
 
 
 def funnel(state: InterfaceGeneratingState):
+    if llm is None:
+        state.errors = "LLM not initialized properly"
+        return state
+    
     comps_funnel_chain = FUNNEL | llm | JsonOutputParser(pydantic_object=FunnelOutput)
     components_descs = get_comps_descs()
 
@@ -206,7 +210,7 @@ def compile_code(state: InterfaceGeneratingState):
     validator = TSXValidator()
     validation_result = validator.validate_tsx(clean_code.strip())
 
-    print(f"Validatioon res: {validation_result}")
+    print(f"Validation res: {validation_result}")
 
     if validation_result["valid"]:
         state.errors = ""
@@ -226,6 +230,8 @@ def compile_interface(state: InterfaceGeneratingState):
 
 
 def generate(query: str) -> str:
+    logging.info(f"Starting generation for query: {query}")
+    
     cur_state = InterfaceGeneratingState(query=query)
     builder = StateGraph(InterfaceGeneratingState)
     builder.add_node("funnel", funnel)
@@ -246,12 +252,33 @@ def generate(query: str) -> str:
 
     memory = MemorySaver()
     graph = builder.compile(checkpointer=memory)
-    config = {"configurable": {"thread_id": "42"}}
+    
+    # Set up configuration with retry mechanism
+    config = {
+        "configurable": {"thread_id": "42"},
+        "recursion_limit": 10,  # Limit the number of retries
+    }
 
-    state = graph.invoke(cur_state, config)
-    print("\n\n\nFINAL RESULT:\n")
-    print(f"\t{str(state)}")
+    try:
+        state = graph.invoke(cur_state, config)
+        logging.info("Generation process completed successfully.")
+        if isinstance(state, dict):
+            logging.info(f"Final state errors: {state.get('errors', 'No errors')}")
+            logging.info(f"Final state code length: {len(state.get('code', ''))}")
+            return str(state.get('code', 'No code generated'))
+        else:
+            logging.error(f"Unexpected state type: {type(state)}")
+            return "An error occurred: Unexpected state type"
+    except Exception as e:
+        logging.error(f"Error in generate function: {str(e)}")
+        return f"An error occurred during generation: {str(e)}"
 
-    # print(STATES_TMP_DUMP)
-    code = str(state["code"])
-    return code
+def _add_error_handling(func):
+    def wrapper(state: InterfaceGeneratingState):
+        try:
+            return func(state)
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {str(e)}")
+            state.errors = f"Error in {func.__name__}: {str(e)}"
+            return state
+    return wrapper

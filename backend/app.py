@@ -6,7 +6,7 @@ import traceback
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app, resources={r"/generate": {"origins": "*"}})  # Allow all origins for testing
+CORS(app, resources={r"/generate": {"origins": "http://localhost:3000"}})  # Replace with your frontend URL
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
@@ -23,9 +23,9 @@ def generate_ui():
     try:
         app.logger.info(f"Processing question: {question}")
         result = generate(question)
-        app.logger.info(f"Generated result: {result}")
+        app.logger.info(f"Generated result: {result[:100]}...")  # Log first 100 chars
         return jsonify({"result": result})
-    except Exception as e:
+    except Exception as e:  
         app.logger.error(f"Error in generate_ui: {str(e)}")
         app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500

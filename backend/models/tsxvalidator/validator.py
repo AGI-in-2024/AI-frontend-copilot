@@ -5,6 +5,7 @@ import json
 import uuid
 from typing import Dict, Any
 from pathlib import Path
+import shutil
 
 
 class TSXValidator:
@@ -61,7 +62,11 @@ class TSXValidator:
             json.dump(tsconfig, f, indent=2)
 
     def _install_dependencies(self):
-        subprocess.run([r"D:\.dev\nodejs\npm.cmd", "install"], cwd=self.base_dir, check=True, capture_output=True)
+        npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
+        npm_path = shutil.which(npm_cmd)
+        if npm_path is None:
+            raise EnvironmentError(f"Cannot find {npm_cmd} in PATH")
+        subprocess.run([npm_path, "install"], cwd=self.base_dir, check=True, capture_output=True)
 
     def validate_tsx(self, tsx_code: str) -> Dict[str, Any]:
         unique_id = uuid.uuid4().hex
@@ -72,8 +77,13 @@ class TSXValidator:
             f.write(tsx_code)
 
         try:
+            npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
+            npx_path = shutil.which(npx_cmd)
+            if npx_path is None:
+                raise EnvironmentError(f"Cannot find {npx_cmd} in PATH")
+            
             result = subprocess.run(
-                [r"D:\.dev\nodejs\npx.cmd", "tsc", "--noEmit", str(temp_file)],
+                [npx_path, "tsc", "--noEmit", str(temp_file)],
                 cwd=self.base_dir,
                 capture_output=True,
                 text=True,

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
@@ -252,3 +252,31 @@ def generate(query: str) -> str:
     # print(STATES_TMP_DUMP)
     code = str(state["code"])
     return code
+
+
+def generate_interface_json(components: List[Component]) -> Dict[str, Any]:
+    initialized_components = []
+    for component in components:
+        props = [{"size": "m", "variant": "primary"}] if component.title == "Button" else [{}]
+        children = []
+        
+        if component.title == "Button":
+            children = [{"type": "text", "content": "Click Me"}]
+        elif component.title == "Card":
+            children = [
+                {"title": "Typography", "used_reason": "To display the card title.", "props": [{"variant": "Heading3"}], "children": [{"type": "text", "content": "Card Title"}]},
+                {"title": "Input", "used_reason": "To allow text input within the card.", "props": [{"label": "Enter text"}], "children": []},
+                {"title": "Button", "used_reason": "To provide an action button within the card.", "props": [{"size": "m", "variant": "secondary"}], "children": [{"type": "text", "content": "Submit"}]}
+            ]
+        elif component.title == "Link":
+            children = [{"type": "text", "content": "Go to Example"}]
+        
+        initialized_component = {
+            "title": component.title,
+            "used_reason": component.reason,
+            "props": props,
+            "children": children
+        }
+        initialized_components.append(initialized_component)
+    
+    return {"initialized_components": initialized_components}

@@ -16,6 +16,8 @@ import 'prismjs/themes/prism-tomorrow.css'
 import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
 import * as NLMKDS from '@nlmk/ds-2.0'
+import { PageEditor } from "./PageEditor";
+import { compileTypescript } from "../utils/compiler";
 
 interface Message {
   id: string
@@ -122,7 +124,7 @@ const UiGenerator = () => {
     setEditableCode(code)
   }, [])
 
-  const compileCode = () => {
+  const compileCode = async () => {
     if (!editableCode.trim()) {
       setCompiledCode(
         <div className="text-red-500">
@@ -133,32 +135,8 @@ const UiGenerator = () => {
     }
 
     try {
-      const Babel = require('@babel/standalone');
-
-      // Remove import and export statements
-      let codeWithoutImports = editableCode
-        .replace(/import[\s\S]+?from\s+['"][^'"]+['"];?/g, '')
-        .replace(/export\s+(default\s+)?/g, '');
-
-      // Transpile the code
-      const transpiledCode = Babel.transform(codeWithoutImports, {
-        filename: 'generatedCode.tsx',
-        presets: ['react', 'typescript'],
-      }).code;
-
-      // Wrap and execute the code
-      const wrappedCode = `
-        const GeneratedComponent = (() => {
-          ${transpiledCode}
-          return Interface; // Adjust the component name if different
-        })();
-        return GeneratedComponent;
-      `;
-
-      const renderFunc = new Function('React', 'NLMKDS', wrappedCode);
-      const GeneratedComponent = renderFunc(React, NLMKDS);
-
-      setCompiledCode(renderComponent(GeneratedComponent));
+      const { html, compiledCode } = await compileTypescript(editableCode);
+      setCompiledCode(<PageEditor code={compiledCode} html={html} />);
     } catch (error) {
       console.error('Ошибка компиляции кода:', error);
       setCompiledCode(
@@ -170,27 +148,18 @@ const UiGenerator = () => {
         </div>
       );
     }
-  }
+  };
 
-  const renderComponent = (node: any): React.ReactNode => {
-    if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
-      return node;
+  const renderComponent = (Component: any): React.ReactNode => {
+    if (typeof Component === 'function') {
+      try {
+        return <Component />;
+      } catch (error) {
+        console.error('Error rendering component:', error);
+        return <div className="text-red-500">Error rendering component: {error instanceof Error ? error.message : 'Unknown error'}</div>;
+      }
     }
-    if (Array.isArray(node)) {
-      return node.map((child, index) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>);
-    }
-    if (React.isValidElement(node)) {
-      return node;
-    }
-    if (typeof node === 'object' && node !== null) {
-      const { type, props, children } = node;
-      return createElement(
-        type,
-        props,
-        ...(Array.isArray(children) ? children.map(renderComponent) : [renderComponent(children)])
-      );
-    }
-    return null;
+    return Component;
   };
 
   const handleAddImage = () => {
@@ -407,11 +376,7 @@ const UiGenerator = () => {
               </Button>
             </TabsContent>
             <TabsContent value="preview">
-              <div className="border border-[#0053A0] rounded-lg p-4 h-[calc(100vh-200px)] overflow-auto">
-                {compiledCode === null ? (
-                  <p>Нажмите "Компилировать и Просмотреть" для отображения предпросмотра.</p>
-                ) : compiledCode}
-              </div>
+              {compiledCode}
             </TabsContent>
           </Tabs>
         </div>

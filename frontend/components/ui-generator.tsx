@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, createElement } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -15,6 +15,7 @@ import 'prismjs/components/prism-tsx'
 import 'prismjs/themes/prism-tomorrow.css'
 import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
+import * as NLMKDS from '@nlmk/ds-2.0'
 
 interface Message {
   id: string
@@ -42,7 +43,7 @@ const UiGenerator = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизйн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: '1', text: "Здравствуйте! Как я мог омочь вам сгенерировать дизйн интерфейса сегодня?", sender: 'ai' }])
   }, [])
 
   useEffect(() => {
@@ -77,6 +78,10 @@ const UiGenerator = () => {
       const generatedCode = response.data.result;
       console.log('Generated code:', generatedCode);
 
+      if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
+        throw new Error(generatedCode);
+      }
+
       setGeneratedCode(generatedCode);
       console.log('State updated with generated code');
 
@@ -87,12 +92,13 @@ const UiGenerator = () => {
       console.log('Show design set to true');
 
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error generating UI:', error);
       if (axios.isAxiosError(error)) {
         console.error('Axios error details:', error.response?.data);
       }
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при ген��рации интерфейса. Пожалуйста, попробуйте еще раз.", sender: 'ai' }]);
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
     } finally {
       setIsGeneratingUI(false);
     }
@@ -117,39 +123,74 @@ const UiGenerator = () => {
   }, [])
 
   const compileCode = () => {
+    if (!editableCode.trim()) {
+      setCompiledCode(
+        <div className="text-red-500">
+          Нет кода для компиляции. Пожалуйста, сгенерируйте код интерфейса сначала.
+        </div>
+      );
+      return;
+    }
+
     try {
+      const Babel = require('@babel/standalone');
+
+      // Remove import and export statements
+      let codeWithoutImports = editableCode
+        .replace(/import[\s\S]+?from\s+['"][^'"]+['"];?/g, '')
+        .replace(/export\s+(default\s+)?/g, '');
+
+      // Transpile the code
+      const transpiledCode = Babel.transform(codeWithoutImports, {
+        filename: 'generatedCode.tsx',
+        presets: ['react', 'typescript'],
+      }).code;
+
+      // Wrap and execute the code
       const wrappedCode = `
-        ${editableCode}
-        return GeneratedComponent();
+        const GeneratedComponent = (() => {
+          ${transpiledCode}
+          return Interface; // Adjust the component name if different
+        })();
+        return GeneratedComponent;
       `;
-      
-      const renderFunc = new Function(wrappedCode);
-      const result = renderFunc();
-      setCompiledCode(renderComponent(result));
+
+      const renderFunc = new Function('React', 'NLMKDS', wrappedCode);
+      const GeneratedComponent = renderFunc(React, NLMKDS);
+
+      setCompiledCode(renderComponent(GeneratedComponent));
     } catch (error) {
       console.error('Ошибка компиляции кода:', error);
       setCompiledCode(
         <div className="text-red-500">
           Ошибка компиляции кода: {error instanceof Error ? error.message : 'Неизвестная ошибка'}
-          <pre className="mt-2 text-xs whitespace-pre-wrap">{error instanceof Error ? error.stack : ''}</pre>
+          <pre className="mt-2 text-xs whitespace-pre-wrap">
+            {error instanceof Error ? error.stack : ''}
+          </pre>
         </div>
       );
     }
   }
 
   const renderComponent = (node: any): React.ReactNode => {
-    if (typeof node !== 'object' || node === null) {
-      return String(node);
+    if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') {
+      return node;
     }
     if (Array.isArray(node)) {
       return node.map((child, index) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>);
     }
-    const { type, props, children } = node;
-    return React.createElement(
-      type,
-      { ...props, key: props.key },
-      children ? children.map((child: any, index: number) => <React.Fragment key={index}>{renderComponent(child)}</React.Fragment>) : null
-    );
+    if (React.isValidElement(node)) {
+      return node;
+    }
+    if (typeof node === 'object' && node !== null) {
+      const { type, props, children } = node;
+      return createElement(
+        type,
+        props,
+        ...(Array.isArray(children) ? children.map(renderComponent) : [renderComponent(children)])
+      );
+    }
+    return null;
   };
 
   const handleAddImage = () => {
@@ -246,7 +287,7 @@ const UiGenerator = () => {
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                   <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-[#0053A0]'}`}>
                     {message.image ? (
-                      <img src={message.image} alt="Згруженное изображение" className="max-w-full h-auto rounded" />
+                      <img src={message.image} alt="Згруженне изображение" className="max-w-full h-auto rounded" />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
@@ -330,7 +371,7 @@ const UiGenerator = () => {
                 >
                   {versions.map((version, index) => (
                     <option key={version.id} value={version.id}>
-                      Версия {index + 1}
+                      Верси {index + 1}
                     </option>
                   ))}
                 </select>
@@ -367,7 +408,9 @@ const UiGenerator = () => {
             </TabsContent>
             <TabsContent value="preview">
               <div className="border border-[#0053A0] rounded-lg p-4 h-[calc(100vh-200px)] overflow-auto">
-                {compiledCode ? compiledCode : <p>No compiled code available. Click "Компилировать и Просмотреть" to see the preview.</p>}
+                {compiledCode === null ? (
+                  <p>Нажмите "Компилировать и Просмотреть" для отображения предпросмотра.</p>
+                ) : compiledCode}
               </div>
             </TabsContent>
           </Tabs>

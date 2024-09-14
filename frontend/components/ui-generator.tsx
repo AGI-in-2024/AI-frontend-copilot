@@ -42,7 +42,7 @@ const UiGenerator = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизйн интерфейса сегодня?", sender: 'ai' }])
   }, [])
 
   useEffect(() => {
@@ -75,17 +75,24 @@ const UiGenerator = () => {
       });
       console.log('Received response from backend:', response.data);
       const generatedCode = response.data.result;
+      console.log('Generated code:', generatedCode);
 
       setGeneratedCode(generatedCode);
+      console.log('State updated with generated code');
+
       setEditableCode(generatedCode);
+      console.log('Editable code updated');
+
       setShowDesign(true);
+      console.log('Show design set to true');
+
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
     } catch (error) {
       console.error('Error generating UI:', error);
       if (axios.isAxiosError(error)) {
         console.error('Axios error details:', error.response?.data);
       }
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при генерации интерфейса. Пожалуйста, попробуйте еще раз.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при ген��рации интерфейса. Пожалуйста, попробуйте еще раз.", sender: 'ai' }]);
     } finally {
       setIsGeneratingUI(false);
     }
@@ -217,7 +224,10 @@ const UiGenerator = () => {
     <div className="flex h-screen bg-gray-100">
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
+          <div className="flex items-center">
+            <img src="logo_nlmk.svg" alt="NLMK Logo" className="h-8 mr-2" />
+            <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleCreateNewDesign} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
               <Plus className="h-4 w-4 mr-2" />
@@ -236,7 +246,7 @@ const UiGenerator = () => {
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                   <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-[#0053A0]'}`}>
                     {message.image ? (
-                      <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
+                      <img src={message.image} alt="Згруженное изображение" className="max-w-full h-auto rounded" />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
@@ -292,9 +302,9 @@ const UiGenerator = () => {
                   <Code className="h-4 w-4 mr-2" />
                   Код
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                <TabsTrigger value="preview" onClick={compileCode} className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
                   <Eye className="h-4 w-4 mr-2" />
-                  Предпросмотр
+                  Препросмотр
                 </TabsTrigger>
               </TabsList>
               <Button variant="outline" size="icon" onClick={toggleFullscreen} className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]">
@@ -357,7 +367,7 @@ const UiGenerator = () => {
             </TabsContent>
             <TabsContent value="preview">
               <div className="border border-[#0053A0] rounded-lg p-4 h-[calc(100vh-200px)] overflow-auto">
-                {compiledCode}
+                {compiledCode ? compiledCode : <p>No compiled code available. Click "Компилировать и Просмотреть" to see the preview.</p>}
               </div>
             </TabsContent>
           </Tabs>

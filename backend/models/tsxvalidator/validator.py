@@ -3,7 +3,7 @@ import subprocess
 import os
 import json
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, List  # Add List to the import
 from pathlib import Path
 import shutil
 
@@ -93,28 +93,19 @@ class TSXValidator:
             if result.returncode == 0:
                 return {"valid": True, "errors": None}
             else:
-                return self._parse_errors(result.stderr)
+                errors = self._parse_errors(result.stderr)
+                return {"valid": False, "errors": errors}
+        except Exception as e:
+            return {"valid": False, "errors": [str(e)]}
         finally:
             temp_file.unlink()
 
-    def _parse_errors(self, error_output: str) -> Dict[str, Any]:
+    def _parse_errors(self, error_output: str) -> List[str]:
         lines = error_output.split('\n')
         parsed_errors = []
 
         for line in lines:
             if ': error TS' in line:
-                parts = line.split(': error TS')
-                if len(parts) == 2:
-                    location, error_message = parts
-                    error_code = error_message.split(':')[0]
-                    message = error_message.split(':', 1)[1].strip()
-                    parsed_errors.append({
-                        "location": location,
-                        "code": error_code,
-                        "message": message
-                    })
+                parsed_errors.append(line.strip())
 
-        return {
-            "valid": False,
-            "errors": parsed_errors
-        }
+        return parsed_errors

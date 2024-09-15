@@ -253,7 +253,7 @@ DEBUGGER = ChatPromptTemplate.from_messages(
             Return the result as a JSON object with the following structure:
             dict(
                 "fixed_code": "<corrected TypeScript code as a string>",
-                "fixed_structure": initialized_components: [
+                "fixed_structure": [
                         dict(
                             "title": "Component Name",                   # название компонента из NLMK
                             "used_reason": "Its primary functionality",  # для чего этот компонент тут находится

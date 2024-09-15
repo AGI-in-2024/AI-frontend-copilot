@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  @apply bg-neutral-800 text-white antialiased;
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+}

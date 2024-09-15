@@ -48,5 +48,18 @@ def health_check():
     return jsonify({"status": "healthy"}), 200
 
 
+@app.route('/update-preview', methods=['POST'])
+def update_preview():
+    code = request.json['code']
+    file_path = '../vite-preview-mode/my-app/src/Home/index.tsx'
+    
+    try:
+        with open(file_path, 'w') as file:
+            file.write(code)
+        return jsonify({"message": "Code updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

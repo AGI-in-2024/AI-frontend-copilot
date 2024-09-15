@@ -3,6 +3,10 @@
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     // ... other options
   }
 }

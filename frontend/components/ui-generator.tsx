@@ -17,7 +17,9 @@ import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
 import * as NLMKDS from '@nlmk/ds-2.0'
 import { PageEditor } from "./PageEditor";
-import { compileTypescript } from "../utils/compiler";
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 interface Message {
   id: string
@@ -37,15 +39,16 @@ const UiGenerator = () => {
   const [isGeneratingUI, setIsGeneratingUI] = useState(false)
   const [generatedCode, setGeneratedCode] = useState('')
   const [editableCode, setEditableCode] = useState('')
-  const [compiledCode, setCompiledCode] = useState<React.ReactNode | null>(null)
   const [showDesign, setShowDesign] = useState(false)
   const [versions, setVersions] = useState<Version[]>([])
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isAdminMode, setIsAdminMode] = useState(false)
+  const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('iframe')
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я мог омочь вам сгенерировать дизйн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
   }, [])
 
   useEffect(() => {
@@ -69,40 +72,61 @@ const UiGenerator = () => {
     setIsGeneratingUI(true);
     setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
-    try {
-      console.log('Sending request to backend...');
-      const response = await axios.post('http://localhost:5000/generate', { question: input }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      console.log('Received response from backend:', response.data);
-      const generatedCode = response.data.result;
-      console.log('Generated code:', generatedCode);
+    if (isAdminMode) {
+      // Dummy response for admin mode
+      setTimeout(() => {
+        const dummyCode = `
+function DummyComponent() {
+  return (
+    <div>
+      <h1>Dummy Component</h1>
+      <p>This is a dummy component generated in admin mode.</p>
+    </div>
+  );
+}
+        `;
+        setGeneratedCode(dummyCode);
+        setEditableCode(dummyCode);
+        setShowDesign(true);
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
+        setIsGeneratingUI(false);
+      }, 1000);
+    } else {
+      try {
+        console.log('Sending request to backend...');
+        const response = await axios.post('http://localhost:5000/generate', { question: input }, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        console.log('Received response from backend:', response.data);
+        const generatedCode = response.data.result;
+        console.log('Generated code:', generatedCode);
 
-      if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
-        throw new Error(generatedCode);
+        if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
+          throw new Error(generatedCode);
+        }
+
+        setGeneratedCode(generatedCode);
+        console.log('State updated with generated code');
+
+        setEditableCode(generatedCode);
+        console.log('Editable code updated');
+
+        setShowDesign(true);
+        console.log('Show design set to true');
+
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
+      } catch (error: unknown) {
+        console.error('Error generating UI:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Axios error details:', error.response?.data);
+        }
+        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
+      } finally {
+        setIsGeneratingUI(false);
       }
-
-      setGeneratedCode(generatedCode);
-      console.log('State updated with generated code');
-
-      setEditableCode(generatedCode);
-      console.log('Editable code updated');
-
-      setShowDesign(true);
-      console.log('Show design set to true');
-
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
-    } catch (error: unknown) {
-      console.error('Error generating UI:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', error.response?.data);
-      }
-      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
-    } finally {
-      setIsGeneratingUI(false);
     }
   };
 
@@ -110,7 +134,6 @@ const UiGenerator = () => {
     setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
     setGeneratedCode('')
     setEditableCode('')
-    setCompiledCode(null)
     setShowDesign(false)
     setVersions([])
     setSelectedVersion(null)
@@ -123,32 +146,6 @@ const UiGenerator = () => {
   const handleCodeChange = useCallback((code: string) => {
     setEditableCode(code)
   }, [])
-
-  const compileCode = async () => {
-    if (!editableCode.trim()) {
-      setCompiledCode(
-        <div className="text-red-500">
-          Нет кода для компиляции. Пожалуйста, сгенерируйте код интерфейса сначала.
-        </div>
-      );
-      return;
-    }
-
-    try {
-      const { html, compiledCode } = await compileTypescript(editableCode);
-      setCompiledCode(<PageEditor code={compiledCode} html={html} />);
-    } catch (error) {
-      console.error('Ошибка компиляции кода:', error);
-      setCompiledCode(
-        <div className="text-red-500">
-          Ошибка компиляции кода: {error instanceof Error ? error.message : 'Неизвестная ошибка'}
-          <pre className="mt-2 text-xs whitespace-pre-wrap">
-            {error instanceof Error ? error.stack : ''}
-          </pre>
-        </div>
-      );
-    }
-  };
 
   const renderComponent = (Component: any): React.ReactNode => {
     if (typeof Component === 'function') {
@@ -230,6 +227,27 @@ const UiGenerator = () => {
     setIsFullscreen(!isFullscreen);
   }
 
+  const getCodeSandboxUrl = useCallback(() => {
+    const parameters = {
+      files: {
+        'index.js': {
+          content: editableCode,
+        },
+        'package.json': {
+          content: JSON.stringify({
+            dependencies: {
+              react: "latest",
+              "react-dom": "latest",
+              "@nlmk/ds-2.0": "latest",
+            },
+          }),
+        },
+      },
+    };
+    const parametersString = encodeURIComponent(JSON.stringify(parameters));
+    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parametersString}`;
+  }, [editableCode]);
+
   return (
     <div className="flex h-screen bg-gray-100">
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
@@ -238,7 +256,15 @@ const UiGenerator = () => {
             <img src="logo_nlmk.svg" alt="NLMK Logo" className="h-8 mr-2" />
             <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="admin-mode"
+                checked={isAdminMode}
+                onCheckedChange={setIsAdminMode}
+              />
+              <Label htmlFor="admin-mode">Режим администратора</Label>
+            </div>
             <Button variant="outline" size="sm" onClick={handleCreateNewDesign} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
               <Plus className="h-4 w-4 mr-2" />
               Новый Дизайн
@@ -312,7 +338,7 @@ const UiGenerator = () => {
                   <Code className="h-4 w-4 mr-2" />
                   Код
                 </TabsTrigger>
-                <TabsTrigger value="preview" onClick={compileCode} className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                <TabsTrigger value="preview" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
                   <Eye className="h-4 w-4 mr-2" />
                   Препросмотр
                 </TabsTrigger>
@@ -371,12 +397,30 @@ const UiGenerator = () => {
                   </Button>
                 </div>
               </div>
-              <Button onClick={compileCode} className="mt-6 bg-[#0053A0] text-white hover:bg-[#003D75]">
-                Компилировать и Просмотреть
-              </Button>
             </TabsContent>
             <TabsContent value="preview">
-              {compiledCode}
+              <div className="mb-4">
+                <ToggleGroup type="single" value={previewType} onValueChange={(value) => setPreviewType(value as 'iframe' | 'codesandbox')}>
+                  <ToggleGroupItem value="iframe">Local Preview</ToggleGroupItem>
+                  <ToggleGroupItem value="codesandbox">CodeSandbox</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              {previewType === 'iframe' ? (
+                <iframe
+                  src="http://localhost:5173"
+                  title="Preview"
+                  className="w-full h-[calc(100vh-240px)] border-none"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <iframe
+                  src={getCodeSandboxUrl()}
+                  title="CodeSandbox Preview"
+                  className="w-full h-[calc(100vh-240px)] border-none"
+                  allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+                  sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>

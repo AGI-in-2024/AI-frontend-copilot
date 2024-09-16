@@ -161,7 +161,7 @@ export default DummyComponent;
   };
 
   const handleCreateNewDesign = () => {
-    setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как  могу помочь вам сгенерировть дизайн интерфейса сегодня?", sender: 'ai' }])
     setGeneratedCode('')
     setEditableCode('')
     setShowDesign(false)
@@ -280,7 +280,7 @@ export default DummyComponent;
   }, [editableCode]);
 
   return (
-    <div className="flex h-screen bg-[#C2D1E0]">
+    <div className="flex h-screen bg-[#EDEEEF]">
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
@@ -302,9 +302,9 @@ export default DummyComponent;
                       id="admin-mode"
                       checked={isAdminMode}
                       onCheckedChange={setIsAdminMode}
-                      className="data-[state=checked]:bg-[#0053A0]"
+                      className="data-[state=checked]:bg-[#2864CE]"
                     />
-                    <Label htmlFor="admin-mode" className="text-[#0053A0] font-medium">Режим тестирования</Label>
+                    <Label htmlFor="admin-mode" className="text-[#1952B6] font-medium">Режим тестирования</Label>
                   </div>
                 </div>
               )}
@@ -314,6 +314,7 @@ export default DummyComponent;
               fill="solid"
               size="m"
               onClick={handleCreateNewDesign}
+              className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
             >
               Новый чат
             </Button>
@@ -326,14 +327,14 @@ export default DummyComponent;
             </Button>
           </div>
         </div>
-        <Card className="flex-grow mb-0 shadow-lg border-[#0053A0] bg-[#D8E5F2] rounded-b-none">
+        <Card className="flex-grow mb-0 shadow-lg border-[#2864CE] bg-white rounded-b-none">
           <ScrollArea className="h-[calc(100vh-280px)]">
             <CardContent>
               {messages.map((message) => (
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-black'}`}>
+                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#2864CE] text-white' : 'bg-[#EDEEEF] text-black'}`}>
                     {message.image ? (
-                      <img src={message.image} alt="Згруженне изображение" className="max-w-full h-auto rounded" />
+                      <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
@@ -343,14 +344,14 @@ export default DummyComponent;
             </CardContent>
           </ScrollArea>
         </Card>
-        <div className="flex items-end gap-2 bg-[#D8E5F2] p-2 rounded-t-none rounded-b-lg">
+        <div className="flex items-end gap-2 bg-white p-2 rounded-t-none rounded-b-lg">
           <Textarea 
             placeholder="Опишите ваш интерфейс..."
             value={input} 
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendAndGenerate()}
             onPaste={handlePaste}
-            className="flex-grow bg-[#D8E5F2] text-black min-h-[80px] border-[#0053A0] rounded-lg"
+            className="flex-grow bg-white text-black min-h-[80px] border-[#2864CE] rounded-lg"
           />
           <div className="flex gap-2">
             <Button 
@@ -367,6 +368,7 @@ export default DummyComponent;
               onClick={handleSendAndGenerate} 
               disabled={isGeneratingUI}
               iconButton={<SendIcon className="h-4 w-4" />}
+              className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
             />
           </div>
         </div>
@@ -379,14 +381,14 @@ export default DummyComponent;
         />
       </div>
       {showDesign && (
-        <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#C2D1E0] border-l border-[#0053A0] p-4 transition-all duration-300`}>
+        <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
           <Tabs defaultValue="code">
             <div className="flex justify-between items-center mb-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="code" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                <TabsTrigger value="code" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
                   Код
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
+                <TabsTrigger value="preview" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
                   Препросмотр
                 </TabsTrigger>
               </TabsList>
@@ -395,7 +397,7 @@ export default DummyComponent;
                 fill="outline"
                 size="m"
                 onClick={toggleFullscreen} 
-                className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]"
+                className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
               >
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
@@ -425,7 +427,7 @@ export default DummyComponent;
                   Current: V{currentVersion}
                 </div>
               </div>
-              <div className="relative border-2 border-[#0053A0] rounded-lg overflow-hidden shadow-lg bg-white">
+              <div className="relative border-2 border-[#2864CE] rounded-lg overflow-hidden shadow-lg bg-white">
                 <Editor
                   value={editableCode}
                   onValueChange={handleCodeChange}
@@ -437,8 +439,8 @@ export default DummyComponent;
                     lineHeight: 1.6,
                     height: 'calc(100vh - 350px)',
                     overflow: 'auto',
-                    backgroundColor: '#2d2d2d',
-                    color: '#ccc',
+                    backgroundColor: '#EDEEEF',
+                    color: '#000',
                   }}
                   textareaClassName="focus:outline-none"
                   className="min-h-[400px] focus-within:shadow-outline-blue"

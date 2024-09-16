@@ -8,8 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-# Update CORS configuration to allow requests from your frontend domain
-CORS(app, resources={r"/*": {"origins": ["http://185.229.224.98:3000", "http://localhost:3000"]}})
+# Update CORS configuration to allow requests from any origin during development
+CORS(app, resources={r"/*": {"origins": ["http://185.229.224.98:3000", "http://localhost:3000"]}})  # Allow all origins for development
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",
@@ -22,6 +22,8 @@ llm = ChatAnthropic(
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
+    app.logger.info(f"Received request from: {request.remote_addr}")
+    app.logger.info(f"Request headers: {request.headers}")
     app.logger.info("Received request to /generate")
     data = request.json
     app.logger.info(f"Received data: {data}")
@@ -101,6 +103,10 @@ def _corsify_actual_response(response, status_code=200):
     response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
     return response, status_code
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    app.logger.info("Received ping request")
+    return jsonify({"message": "pong"}), 200
+
 if __name__ == '__main__':
-    # Change the host to '0.0.0.0' to make it accessible from any IP
     app.run(host='0.0.0.0', port=5000, debug=True)

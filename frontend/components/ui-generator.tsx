@@ -81,7 +81,9 @@ const UiGenerator = () => {
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
-      await axios.post('http://localhost:5000/update-preview', { code }, {
+      const backendUrl = 'http://185.229.224.98:5000/update-preview';
+      console.log('Updating index file. Backend URL:', backendUrl);
+      await axios.post(backendUrl, { code }, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -128,7 +130,9 @@ export default DummyComponent;
     } else {
       try {
         console.log('Sending request to backend...');
-        const response = await axios.post('http://localhost:5000/generate', { question: input }, {
+        const backendUrl = 'http://185.229.224.98:5000/generate';
+        console.log('Backend URL:', backendUrl);
+        const response = await axios.post(backendUrl, { question: input }, {
           headers: {
             'Content-Type': 'application/json',
           },
@@ -157,6 +161,8 @@ export default DummyComponent;
         console.error('Error generating UI:', error);
         if (axios.isAxiosError(error)) {
           console.error('Axios error details:', error.response?.data);
+          console.error('Axios error status:', error.response?.status);
+          console.error('Axios error headers:', error.response?.headers);
         }
         const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
         setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);

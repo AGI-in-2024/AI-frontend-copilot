@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback, createElement } from 'react'
-import { Button } from "@/components/ui/button"
+import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code, Image as ImageIcon, Maximize2, Download, Copy, Minimize2, Check } from 'lucide-react'
+import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
@@ -20,6 +20,8 @@ import { PageEditor } from "./PageEditor";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Sandpack } from "@codesandbox/sandpack-react";
+import { getParameters } from 'codesandbox/lib/api/define';
 
 interface Message {
   id: string
@@ -57,6 +59,7 @@ const UiGenerator = () => {
   const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('iframe')
   const [currentVersion, setCurrentVersion] = useState(1)
   const [isCopied, setIsCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
@@ -78,7 +81,11 @@ const UiGenerator = () => {
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
-      await axios.post('http://localhost:5000/update-preview', { code });
+      await axios.post('http://localhost:5000/update-preview', { code }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       console.log('index.tsx updated successfully');
     } catch (error) {
       console.error('Error updating index.tsx:', error);
@@ -160,7 +167,7 @@ export default DummyComponent;
   };
 
   const handleCreateNewDesign = () => {
-    setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как  могу помочь вам сгенерировть дизайн интерфейса сегодня?", sender: 'ai' }])
     setGeneratedCode('')
     setEditableCode('')
     setShowDesign(false)
@@ -257,63 +264,95 @@ export default DummyComponent;
     setIsFullscreen(!isFullscreen);
   }
 
-  const getCodeSandboxUrl = useCallback(() => {
-    const parameters = {
-      files: {
-        'index.js': {
-          content: editableCode,
-        },
-        'package.json': {
-          content: JSON.stringify({
-            dependencies: {
-              react: "latest",
-              "react-dom": "latest",
-              "@nlmk/ds-2.0": "latest",
-            },
-          }),
-        },
+  const getCodeSandboxFiles = useCallback(() => {
+    return {
+      "package.json": {
+        content: JSON.stringify({
+          dependencies: {
+            "react": "^17.0.2",
+            "react-dom": "^17.0.2",
+            "@nlmk/ds-2.0": "latest"
+          }
+        })
+      },
+      "/src/App.js": {
+        content: editableCode,
+      },
+      "/src/index.js": {
+        content: `
+import React from "react";
+import ReactDOM from "react-dom";
+import App from "./App";
+
+ReactDOM.render(<App />, document.getElementById("root"));
+        `,
       },
     };
-    const parametersString = encodeURIComponent(JSON.stringify(parameters));
-    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parametersString}`;
   }, [editableCode]);
 
+  const getCodeSandboxUrl = useCallback(() => {
+    const parameters = getParameters({
+      files: getCodeSandboxFiles() as Record<string, { content: string }>,
+    });
+    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
+  }, [getCodeSandboxFiles]);
+
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-[#EDEEEF]">
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
-            <img src="logo_nlmk.svg" alt="NLMK Logo" className="h-8 mr-2" />
+            <img src="logo_nlmk.svg" alt="NLMK Logo" className="h-12 mr-3" />
             <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2 bg-[#E6F0F9] p-2 rounded-md">
-              <Switch
-                id="admin-mode"
-                checked={isAdminMode}
-                onCheckedChange={setIsAdminMode}
-                className="data-[state=checked]:bg-[#0053A0]"
+            <div className="relative">
+              <Button
+                variant="secondary"
+                size="m"
+                onClick={() => setShowSettings(!showSettings)}
+                iconButton={<Settings className="h-4 w-4" />}
               />
-              <Label htmlFor="admin-mode" className="text-[#0053A0] font-medium">Режим администратора</Label>
+              {showSettings && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                  <div className="flex items-center space-x-2 p-2">
+                    <Switch
+                      id="admin-mode"
+                      checked={isAdminMode}
+                      onCheckedChange={setIsAdminMode}
+                      className="data-[state=checked]:bg-[#2864CE]"
+                    />
+                    <Label htmlFor="admin-mode" className="text-[#1952B6] font-medium">Режим тестирования</Label>
+                  </div>
+                </div>
+              )}
             </div>
-            <Button variant="outline" size="sm" onClick={handleCreateNewDesign} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
-              <Plus className="h-4 w-4 mr-2" />
-              Новый Дизайн
+            <Button 
+              variant="primary"
+              fill="solid"
+              size="m"
+              onClick={handleCreateNewDesign}
+              className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
+            >
+              Новый чат
             </Button>
-            <Button variant="outline" size="sm" onClick={handleOpenDesignHistory} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
-              <MessageSquare className="h-4 w-4 mr-2" />
-              История Дизайнов
+            <Button 
+              variant="secondary"
+              size="m"
+              onClick={handleOpenDesignHistory}
+            >
+              История чата
             </Button>
           </div>
         </div>
-        <Card className="flex-grow mb-4 shadow-lg border-[#0053A0]">
-          <ScrollArea className="h-[calc(100vh-200px)]">
+        <Card className="flex-grow mb-0 shadow-lg border-[#2864CE] bg-white rounded-b-none">
+          <ScrollArea className="h-[calc(100vh-280px)]">
             <CardContent>
               {messages.map((message) => (
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-black'}`}>
+                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#2864CE] text-white' : 'bg-[#EDEEEF] text-black'}`}>
                     {message.image ? (
-                      <img src={message.image} alt="Згруженне изображение" className="max-w-full h-auto rounded" />
+                      <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
@@ -323,33 +362,32 @@ export default DummyComponent;
             </CardContent>
           </ScrollArea>
         </Card>
-        <div className="flex gap-2">
+        <div className="flex items-end gap-2 bg-white p-2 rounded-t-none rounded-b-lg">
           <Textarea 
             placeholder="Опишите ваш интерфейс..."
             value={input} 
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendAndGenerate()}
             onPaste={handlePaste}
-            className="flex-grow bg-white text-black min-h-[80px] border-[#0053A0]"
+            className="flex-grow bg-white text-black min-h-[80px] border-[#2864CE] rounded-lg"
           />
-          <div className="flex flex-col gap-2">
-            <Button onClick={handleSendAndGenerate} disabled={isGeneratingUI} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
-              {isGeneratingUI ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Генерация...
-                </>
-              ) : (
-                <>
-                  <SendIcon className="h-4 w-4 mr-2" />
-                  Отправить
-                </>
-              )}
-            </Button>
-            <Button onClick={handleAddImage} variant="outline" className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]">
-              <ImageIcon className="h-4 w-4 mr-2" />
-              Добавить Изображение
-            </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="secondary"
+              fill="solid"
+              size="m"
+              onClick={handleAddImage}
+              iconButton={<ImageIcon className="h-4 w-4" />}
+            />
+            <Button 
+              variant="primary"
+              fill="solid"
+              size="m"
+              onClick={handleSendAndGenerate} 
+              disabled={isGeneratingUI}
+              iconButton={<SendIcon className="h-4 w-4" />}
+              className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
+            />
           </div>
         </div>
         <input
@@ -361,20 +399,24 @@ export default DummyComponent;
         />
       </div>
       {showDesign && (
-        <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-white border-l border-[#0053A0] p-4 transition-all duration-300`}>
+        <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
           <Tabs defaultValue="code">
             <div className="flex justify-between items-center mb-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="code" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
-                  <Code className="h-4 w-4 mr-2" />
+                <TabsTrigger value="code" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
                   Код
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="data-[state=active]:bg-[#0053A0] data-[state=active]:text-white">
-                  <Eye className="h-4 w-4 mr-2" />
+                <TabsTrigger value="preview" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
                   Препросмотр
                 </TabsTrigger>
               </TabsList>
-              <Button variant="outline" size="icon" onClick={toggleFullscreen} className="border-[#0053A0] text-[#0053A0] hover:bg-[#E6F0F9]">
+              <Button 
+                variant="secondary"
+                fill="outline"
+                size="m"
+                onClick={toggleFullscreen} 
+                className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+              >
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
             </div>
@@ -384,8 +426,9 @@ export default DummyComponent;
                   {versions.map((version, index) => (
                     <Button
                       key={version.id}
-                      variant={selectedVersion === version.id ? "default" : "outline"}
-                      size="sm"
+                      variant={selectedVersion === version.id ? "primary" : "secondary"}
+                      fill="solid"
+                      size="s"
                       onClick={() => {
                         setSelectedVersion(version.id);
                         setEditableCode(version.code);
@@ -402,7 +445,7 @@ export default DummyComponent;
                   Current: V{currentVersion}
                 </div>
               </div>
-              <div className="relative border-2 border-[#0053A0] rounded-lg overflow-hidden shadow-lg">
+              <div className="relative border-2 border-[#2864CE] rounded-lg overflow-hidden shadow-lg bg-white">
                 <Editor
                   value={editableCode}
                   onValueChange={handleCodeChange}
@@ -414,24 +457,29 @@ export default DummyComponent;
                     lineHeight: 1.6,
                     height: 'calc(100vh - 350px)',
                     overflow: 'auto',
-                    backgroundColor: '#2d2d2d',
-                    color: '#ccc',
+                    backgroundColor: '#EDEEEF',
+                    color: '#000',
                   }}
                   textareaClassName="focus:outline-none"
                   className="min-h-[400px] focus-within:shadow-outline-blue"
                 />
                 <div className="absolute top-4 right-4 flex gap-2">
-                  <Button variant="outline" size="icon" onClick={handleDownloadCode} className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]">
-                    <Download className="h-4 w-4" />
-                  </Button>
                   <Button 
-                    variant="outline" 
-                    size="icon" 
+                    variant="secondary"
+                    fill="outline"
+                    size="m"
+                    onClick={handleDownloadCode} 
+                    className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
+                    iconButton={<Download className="h-4 w-4" />}
+                  />
+                  <Button 
+                    variant="secondary"
+                    fill="outline"
+                    size="m"
                     onClick={handleCopyCode} 
                     className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
-                  >
-                    {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
+                    iconButton={isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  />
                 </div>
               </div>
             </TabsContent>
@@ -450,13 +498,15 @@ export default DummyComponent;
                   sandbox="allow-scripts allow-same-origin"
                 />
               ) : (
-                <iframe
-                  src={getCodeSandboxUrl()}
-                  title="CodeSandbox Preview"
-                  className="w-full h-[calc(100vh-240px)] border-none"
-                  allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
-                  sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-                />
+                <div className="w-full h-[calc(100vh-240px)]">
+                  <iframe
+                    src={getCodeSandboxUrl()}
+                    style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
+                    title="CodeSandbox Preview"
+                    allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+                    sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                  />
+                </div>
               )}
             </TabsContent>
           </Tabs>

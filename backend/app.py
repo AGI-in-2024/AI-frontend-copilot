@@ -8,14 +8,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-# Update CORS configuration to allow requests from any origin during development
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})  # Allow all origins for development
+# Update CORS configuration to allow requests from the frontend development server
+CORS(app)  # This allows all origins - only use for debugging!
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",
     temperature=0,
     max_tokens=8000,
-    timeout=None,
+    timeout=60,  # Increase this value
     max_retries=2,
     api_key=os.environ.get('ANTROPIC_API_KEY')
 )
@@ -24,7 +24,7 @@ llm = ChatAnthropic(
 def generate_ui():
     app.logger.info(f"Received request from: {request.remote_addr}")
     app.logger.info(f"Request headers: {request.headers}")
-    app.logger.info("Received request to /generate")
+    app.logger.info(f"Request data: {request.get_data()}")
     data = request.json
     app.logger.info(f"Received data: {data}")
 
@@ -109,4 +109,4 @@ def ping():
     return jsonify({"message": "pong"}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)

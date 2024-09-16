@@ -130,12 +130,13 @@ export default DummyComponent;
     } else {
       try {
         console.log('Sending request to backend...');
-        const backendUrl = '/api/generate';
+        const backendUrl = 'http://localhost:5000/api/generate';
         console.log('Backend URL:', backendUrl);
         const response = await axios.post(backendUrl, { question: input }, {
           headers: {
             'Content-Type': 'application/json',
           },
+          timeout: 60000 // Increase timeout to 60 seconds
         });
         console.log('Received response from backend:', response.data);
         const generatedCode = response.data.result;
@@ -159,13 +160,26 @@ export default DummyComponent;
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
       } catch (error: unknown) {
         console.error('Error generating UI:', error);
+        let errorMessage = 'Произошла неизвестная ошибка при генерации интерфейса.';
+        
         if (axios.isAxiosError(error)) {
-          console.error('Axios error details:', error.response?.data);
-          console.error('Axios error status:', error.response?.status);
-          console.error('Axios error headers:', error.response?.headers);
+          if (error.code === 'ECONNABORTED') {
+            errorMessage = 'Превышено время ожидания ответа от сервера. Пожалуйста, попробуйте еще раз.';
+          } else if (error.response) {
+            console.error('Axios error details:', error.response.data);
+            console.error('Axios error status:', error.response.status);
+            console.error('Axios error headers:', error.response.headers);
+            errorMessage = `Ошибка сервера: ${error.response.status}. Пожалуйста, попробуйте позже.`;
+          } else if (error.request) {
+            errorMessage = 'Не удалось получить ответ от сервера. Проверьте подключение к интернету.';
+          } else {
+            errorMessage = `Ошибка запроса: ${error.message}`;
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
         }
-        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
+        
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: errorMessage, sender: 'ai' }]);
       } finally {
         setIsGeneratingUI(false);
       }
@@ -298,7 +312,7 @@ ReactDOM.render(<App />, document.getElementById("root"));
 
   const getCodeSandboxUrl = useCallback(() => {
     const parameters = getParameters({
-      files: getCodeSandboxFiles() as Record<string, { content: string, isBinary: boolean }>,
+      files: getCodeSandboxFiles() as Record<string, { content: string }>,
     });
     return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
   }, [getCodeSandboxFiles]);

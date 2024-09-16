@@ -8,8 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-# Update CORS configuration to allow requests from any origin
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Update CORS configuration to allow requests from your frontend domain
+CORS(app, resources={r"/*": {"origins": ["http://185.229.224.98:3000", "http://localhost:3000"]}})
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",

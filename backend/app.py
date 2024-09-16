@@ -8,7 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# Update CORS configuration to allow requests from any origin
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",
@@ -38,7 +39,7 @@ def generate_ui():
         
         response = llm.invoke([
             SystemMessage(content="You senior react developer helps with react code"),
-            HumanMessage(content=f"Keeps all nlmk components, improve this code visiability and style, it should looks production ready, and something else if needed. and returns only code and nothing else. no markdown, no text, no comments, no explanation, no nothing, just code. Here is the code, improve it: {result}"),
+            HumanMessage(content=f"Keeps all nlmk components, improve this code visiability and style, it should full complited component. add style and other code if needed to improve this ui. returns only code and nothing else. no markdown, no text, no comments, no explanation, no nothing, just code. Here is the code, improve it: {result}"),
         ])
         
         return jsonify({"result": response.content})
@@ -101,4 +102,5 @@ def _corsify_actual_response(response, status_code=200):
     return response, status_code
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Change the host to '0.0.0.0' to make it accessible from any IP
+    app.run(host='0.0.0.0', port=5000, debug=True)

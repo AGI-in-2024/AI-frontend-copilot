@@ -81,7 +81,7 @@ const UiGenerator = () => {
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
-      const backendUrl = 'http://185.229.224.98:5000/update-preview';
+      const backendUrl = '/api/update-preview';
       console.log('Updating index file. Backend URL:', backendUrl);
       await axios.post(backendUrl, { code }, {
         headers: {
@@ -130,7 +130,7 @@ export default DummyComponent;
     } else {
       try {
         console.log('Sending request to backend...');
-        const backendUrl = 'http://185.229.224.98:5000/generate';
+        const backendUrl = '/api/generate';
         console.log('Backend URL:', backendUrl);
         const response = await axios.post(backendUrl, { question: input }, {
           headers: {
@@ -298,7 +298,7 @@ ReactDOM.render(<App />, document.getElementById("root"));
 
   const getCodeSandboxUrl = useCallback(() => {
     const parameters = getParameters({
-      files: getCodeSandboxFiles() as Record<string, { content: string }>,
+      files: getCodeSandboxFiles() as Record<string, { content: string, isBinary: boolean }>,
     });
     return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
   }, [getCodeSandboxFiles]);

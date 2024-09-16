@@ -8,15 +8,12 @@ from langchain_community.document_loaders import CSVLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 
-# COMPONENTS_DIR = "..\\..\\ds-2.0\\src\\components"
-# OUTPUT_JSON_PATH = "./data/RAW_COMPONENTS_.json"
-# OUTPUT_CSV_PATH = "./data/RAW_COMPONENTS_.csv"
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COMPONENTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'backend', 'ds-2.0', 'src', 'components')
 OUTPUT_JSON_PATH = os.path.join(BASE_DIR, "data", "RAW_COMPONENTS_.json")
 OUTPUT_CSV_PATH = os.path.join(BASE_DIR, "data", "RAW_COMPONENTS_.csv")
 FAISS_DB_PATH = os.path.join(BASE_DIR, "data", "faiss_extended")
+
 
 # Функция для поиска реального пути файла по его импорту
 async def resolve_import_path(import_path: str, current_file_path: str) -> str | None:
@@ -90,7 +87,7 @@ async def collect_component_data(folder_path: str) -> tuple | None:
         with open(stories_path, 'r', encoding='utf-8') as stories_file:
             stories_content = stories_file.read()
 
-        pattern = r'<Header\s+.*?description=(?P<description>{.*?}|"[^"]*").*?isStable.*?>'
+        pattern = r'<Header\s+.*?description=(?P<description>{.*?}|"[^"]*").*?(isStable|isBeta).*?>'
         match = re.search(pattern, stories_content, re.DOTALL)
 
         if not match:
@@ -110,6 +107,8 @@ async def collect_component_data(folder_path: str) -> tuple | None:
             if os.path.isfile(index_path):
                 await deep_search(index_path, result_files)
 
+            print(f"RESULT FILES FOR {title}: {result_files}\n")
+
             return (
                 title, {
                     "description": description,
@@ -123,10 +122,10 @@ def save_to_json(components_data: dict, output_path: str):
                     "description" in details}
 
     data = {"descriptions": descriptions}
-    
+
     # Ensure the directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     try:
         with open(output_path, 'w', encoding='utf-8') as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
@@ -145,7 +144,7 @@ def format_component_path(filename):
     path_parts = filename.split(os.sep)
     if 'components' in path_parts:
         idx = path_parts.index('components')
-        return " ".join(path_parts[idx:])
+        return "component " + " ".join(path_parts[idx + 1:])
     return filename
 
 
@@ -160,7 +159,7 @@ def save_to_csv(components_data: dict, output_path: str):
             for filename, content in component_data['files'].items():
                 if filename.endswith('.tsx'):
                     doc_type = f"Codes for {format_component_path(filename)}"
-                elif filename.endswith('.ts'):
+                elif filename.endswith('.ts') or filename.endswith('.d.ts'):
                     doc_type = f"Types for {format_component_path(filename)}"
                 elif filename.endswith('.scss'):
                     doc_type = f"Styles for {format_component_path(filename)}"
@@ -206,7 +205,6 @@ def parse_recursivly_store_faiss():
 
 
 def get_comps_descs() -> str:
-
     with open(OUTPUT_JSON_PATH, 'r', encoding="utf=8") as file:
         comps_descs = json.load(file)
 

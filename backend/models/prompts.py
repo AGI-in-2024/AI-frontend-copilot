@@ -16,7 +16,7 @@ FUNNEL = ChatPromptTemplate.from_messages(
             needed_components: [
                 dict(
                     "title": "Component Name",  # название компонента из NLMK
-                    "reason": "User query mapping"  # какое требование пользователя покрывает этот компонент
+                    "reason": "User query mapping"  # Какие требования пользователя может покрыть этот компонент
                 ),
                 ...
             ]
@@ -58,6 +58,41 @@ FUNNEL_ITER = ChatPromptTemplate.from_messages(
     ]
 )
 
+
+INTERFACE_JSON = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a highly experienced front-end TypeScript developer specializing in React. You are familiar with complex component libraries and can quickly understand new components by reviewing their source code and documentation. Your task is to help build a structured interface based on the user's query using components from the NLMK React design system."
+        ),
+        (
+            "human",
+            """User's query:
+             {query}
+
+            You MUST use components only from the provided list:
+            {needed_components}
+
+            Here are information of props TYPES for these components and some code examples:
+            {components_info}
+
+            Your response must be a strictly formatted JSON structured list:
+            initialized_components: [
+                dict(
+                    "signature": "Component or Subcomponent signature",   # то как вызывается компонент или подкомпонент из NLMK
+                    "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
+                    "props": dict of props, if they are,               # инициализированные пропсы компонента
+                    "children": list[ VALID INITIALIZED CHILDREN ELEMENTS],  # список инициализированных элементов
+                )
+            ]
+            Put only NLMK COMPONENTS and be sure to init props that i give you earlier!
+            DONT WRAP result in '''json...'''
+            DONT add things like '() => ...' If you are initializing props func - then just describe what should it do!
+            """
+        ),
+    ]
+)
+
 INTERFACE_JSON_ITER = ChatPromptTemplate.from_messages(
     [
         (
@@ -77,55 +112,26 @@ INTERFACE_JSON_ITER = ChatPromptTemplate.from_messages(
                Update the current structure and return a strictly formatted JSON:
                modified_interface: [
                    dict(
-                       "title": "Component Name",                   # название компонента из NLMK
+                       "signature": "Component or Subcomponent signature",   # то как вызывается компонент или подкомпонент из NLMK
                        "used_reason": "Why it's used",  # причина использования компонента
-                       "props": list[Dict[str, Any]],               # инициализированные пропсы компонента
-                       "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список дочерних элементов                      
+                       "props": dict of props, if they are,               # инициализированные пропсы компонента
+                       "children": list[ VALID INITIALIZED CHILDREN ELEMENTS],  # список дочерних элементов  
                    )
                ]
+                Put only NLMK COMPONENTS and be sure to init props that i give you earlier!
+                DONT WRAP result in '''json...'''
+                DONT add things like '() =>..' If you are initializing props func - then just describe what should it do!
             """
         ),
     ]
 )
 
-
-INTERFACE_JSON = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "You are a highly experienced front-end TypeScript developer specializing in React. You are familiar with complex component libraries and can quickly understand new components by reviewing their source code and documentation. Your task is to help build a structured interface based on the user's query using components from the NLMK React design system."
-        ),
-        (
-            "human",
-            """User's query:
-             {query}
-
-            You MUST use components only from the provided list:
-            {needed_components}
-
-            Here are information of these components: Types of arguments, Styles and Codes:
-            {components_info}
-
-            Your response must be a strictly formatted JSON structured list:
-            initialized_components: [
-                dict(
-                    "title": "Component Name",                   # название компонента из NLMK
-                    "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
-                    "props": list[Dict[str, Any]],               # инициализированные пропсы компонента
-                    "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список инициализированных элементов                    
-                )
-            ]
-            Put only NLMK COMPONENTS!
-            """
-        ),
-    ]
-)
 
 CODER = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to convert a structured JSON description of a user interface into fully functional React code. The JSON contains information about the components, their props, and their hierarchical structure. You should generate code that accurately reflects this structure."
+            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to convert a structured JSON description of a user interface into fully functional React code. The JSON contains information about the components, their props, visual styles, and their hierarchical structure. You should generate code that accurately reflects this structure."
         ),
         (
             "human",
@@ -139,16 +145,14 @@ CODER = ChatPromptTemplate.from_messages(
             ADDITIONAL SOURCE FILES with extremely useful info about these Components: Types, Styles and Codes examples
             {interface_components}
 
-            You MUST convert this JSON structure into a working React code using functional NLMK components ( its configurations i have described in json earlier )and JSX. Make sure to:
+            You MUST convert this JSON structure into a working React code using functional NLMK components (its configurations I have described in JSON earlier) and JSX. Make sure to:
             - Use TypeScript.
             - Reflect the component hierarchy as per the "children" field in the JSON.
-            - If props are passed in the JSON, ensure they are included in the component invocation and check their correctness with the help of SOURCE FILES.
-            - Add Styles from NLMK lib to make interface components placement more structured and beautiful
+            - If props are passed in the JSON, ensure they are included in the component invocation and validated against the SOURCE FILES.
             - Ensure the output is formatted correctly for use in a TypeScript React project.
 
-
-            YOU MUST USE ONLY PURE react and COMPONENTS from '@nlmk/ds-2.0' that i gave to you!
-            DONT USE ANY imported STYLES or any!
+            YOU MUST USE ONLY PURE react and COMPONENTS from '@nlmk/ds-2.0' that I gave to you!
+            DO NOT USE ANY external or imported stylesheets or styles!
 
             The final code should look like this:
             {code_sample}
@@ -157,6 +161,7 @@ CODER = ChatPromptTemplate.from_messages(
         ),
     ]
 )
+
 
 CODER_ITER = ChatPromptTemplate.from_messages(
     [
@@ -240,28 +245,29 @@ DEBUGGER = ChatPromptTemplate.from_messages(
             {useful_info}
 
             Your task is to:
-            - Identify the incorrect fields in the JSON structure that are likely causing the errors in the code.
-            - Don't add any things in what you are not absolute confident
-            - Make only the necessary targeted changes to these fields - CHANGE or DELETE elements in the JSON structure to resolve the identified issues.
-            - Correct the TypeScript code based on these updates in the JSON structure.
-            - Ensure that the corrected code adheres to the updated JSON structure, reflecting the proper component hierarchy and props as described in the "children" field and other attributes.
-            - Use the code examples from the provided useful information to apply the best practices for fixing the identified issues.
-            - Ensure the code uses only pure React and components from '@nlmk/ds-2.0', as specified in the JSON and the example.
-            - Format the code properly, ensuring it is functional and ready for use in a TypeScript React project.
-            - Make sure to resolve all errors mentioned in the errors list.
+            - Use the location and details provided in the errors to directly target the problematic code sections.
+            - You can edit import line to fix bugs, by removing non-existent components
+            - Prioritize fixing the TypeScript code first. Make any necessary changes to resolve the errors provided in the error list.
+            - If the JSON structure is incorrect and causing issues, make the necessary adjustments **only after** the code is fixed.
+            - Ensure the corrected TypeScript code adheres to best practices and is formatted properly for use in a TypeScript React project.
+            - Ensure the code uses only pure React and components from '@nlmk/ds-2.0', as specified in the JSON and the provided examples.
+            - Resolve all errors mentioned in the errors list before returning the result.
+            
 
-            Return the result as a JSON object with the following structure:
-            dict(
+            Return the result as a JSON with the following items:
                 "fixed_code": "<corrected TypeScript code as a string>",
-                "fixed_structure": [
+                "fixed_structure": corrected JSON structure as a dict( 
+                    initialized_components : [
                         dict(
-                            "title": "Component Name",                   # название компонента из NLMK
+                            "signature": "Component or Subcomponent signature",   # то как вызывается компонент или подкомпонент из NLMK
                             "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
-                            "props": list[Dict[str, Any]],               # инициализированные пропсы компонента
-                            "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список инициализированных элементов                    
+                            "props": dict of props, if they are,               # инициализированные пропсы компонента
+                            "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список инициализированных элементов       
                         )
                     ]
-            ))
+                )
+            DONT WRAP result in '''json...'''
+            DONT add things like '() =>..' If you are initializing props func - then just describe what should it do!
             """
         ),
     ]

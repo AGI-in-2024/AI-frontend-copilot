@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Union, List
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
@@ -12,6 +12,7 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
+from backend.models.errors_analizer import extract_component_by_error_line
 from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER
 from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
@@ -49,26 +50,27 @@ class FunnelOutput(BaseModel):
 
 
 class InterfaceComponent(BaseModel):
-    title: str = Field(description="Название компонента")
-    props: list[Dict[str, Any] | None] | Dict[str, Any] = Field(description="Список пропсов и их значений")
-    used_reason: str = Field(description="Какую функцию выполняет этот компонент в данном месте")
-    children: list[Dict[str, Any] | Any] | Any = Field(
-        description="Список инициализированных дочерних элементов далее по иерархии ")
+    signature: str = Field(description="# то как вызывается компонент или подкомпонент из NLMK")
+    props: Union[Dict[str, Any], None] | Any = Field(description="Словарь пропсов и их значений")
+    used_reason: str = Field(description="Функция компонента в данном контексте")
+    children: Any = Field(
+        description="Список дочерних элементов, который может включать как другие компоненты, так и строки"
+    )
 
 
 class InterfaceJson(BaseModel):
-    initialized_components: list[InterfaceComponent]
+    initialized_components: list[InterfaceComponent | Any]
 
 
 class RefactoredInterface(BaseModel):
     fixed_code: str = Field(description="Исправленная код интерфейса")
-    fixed_structure: InterfaceJson = Field(description="Исправленная JSON структура, после фикса ошибок")
+    fixed_structure: Any = Field(description="Исправленная JSON структура, после фикса ошибок")
 
 
 class InterfaceGeneratingState(BaseModel):
     query: str | None = Field(default=None)
     components: FunnelOutput | None = Field(default=None, description="Релевантные для интерфейса компоненты")
-    json_structure: InterfaceJson | None = Field(default=None, description="Структ��ра интерфейса")
+    json_structure: InterfaceJson | None | Any = Field(default=None, description="Структурра интерфейса")
     code: str | None = Field(default=code_sample, description="Код компонента")
     errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
@@ -77,7 +79,7 @@ def funnel(state: InterfaceGeneratingState):
     if llm is None:
         state.errors = "LLM not initialized properly"
         return state
-    
+
     comps_funnel_chain = FUNNEL | llm | JsonOutputParser(pydantic_object=FunnelOutput)
     components_descs = get_comps_descs()
 
@@ -95,19 +97,21 @@ def funnel(state: InterfaceGeneratingState):
     return state
 
 
+def search_component_docs(queries: list[str]):
+    results = []
+    for query in queries:
+        docs = db.as_retriever(
+            search_type="mmr",
+            search_kwargs={'k': 3, 'lambda_mult': 0.1, 'fetch_k': 25}
+        ).invoke(query)
+        results += docs
+    return results
+
+
 def make_structure(state: InterfaceGeneratingState):
     interface_json_chain = (
             {
-                "components_info": lambda x: format_docs(
-                    db.as_retriever(
-                        search_type="mmr",
-                        search_kwargs={
-                               'k': min(len(x["needed_components"]) * 2, 10),
-                            'fetch_k': min(len(x["needed_components"]) * 4, 42),
-                            'lambda_mult': 0.2
-                        }
-                    ).invoke(str(x["needed_components"]))
-                ),
+                "components_info": lambda x: format_docs(x["components_info"]),
                 "query": lambda x: x["query"],  # Pass the question unchanged
                 "needed_components": lambda x: x["needed_components"],
             }
@@ -119,7 +123,13 @@ def make_structure(state: InterfaceGeneratingState):
     interface_json = interface_json_chain.invoke(
         {
             "query": state.query,
-            "needed_components": state.components.needed_components
+            "needed_components": state.components.needed_components,
+            "components_info": search_component_docs(
+                [f"Detailed ARG TYPES of props a component {x.title} can have"
+                 for x in state.components.needed_components] +
+                [f"CODE examples of using {x.title}"
+                 for x in state.components.needed_components]
+            )
         }
     )
     state.json_structure = interface_json
@@ -131,16 +141,7 @@ def make_structure(state: InterfaceGeneratingState):
 def write_code(state: InterfaceGeneratingState):
     interface_coder_chain = (
             {
-                "interface_components": lambda x: format_docs(
-                    db.as_retriever(
-                        search_type="mmr",
-                        search_kwargs={
-                            'k': 7,
-                            'fetch_k': 20,
-                            'lamda_mult': 0.4
-                        }
-                    ).invoke(str(x["json_structure"]))
-                ),  # Get context and format it
+                "interface_components": lambda x: x["code_sample"],  # Get context and format it
                 "query": lambda x: x["query"],  # Pass the question unchanged
                 "json_structure": lambda x: x["json_structure"],
                 "code_sample": lambda x: x["code_sample"]
@@ -153,7 +154,14 @@ def write_code(state: InterfaceGeneratingState):
     interface_code = interface_coder_chain.invoke({
         "query": state.query,
         "json_structure": state.json_structure,
-        "code_sample": state.code
+        "code_sample": state.code,
+        "interface_components": search_component_docs(
+            [f"The best CODE examples of using {x.title} component"
+             for x in state.components.needed_components] +
+            [f"Styles definition of {x.title}'s props"
+             for x in state.components.needed_components]
+
+        )
     })
 
     state.code = interface_code
@@ -163,20 +171,37 @@ def write_code(state: InterfaceGeneratingState):
     return state
 
 
+def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
+    info_to_fix = [""]
+
+    for err in errors_list:
+        if "Type" in err["message"]:
+            component_with_err = extract_component_by_error_line(code, int(
+                (err["location"]).split(" ")[4]))  # Извлекаем компонент по строке с ошибкой
+            print(f"COMPONENT WITH ERROR {component_with_err}")
+
+            if len(component_with_err.split(' ')) == 1:
+                doc_info = db.as_retriever(
+                    search_type="mmr",
+                    search_kwargs={
+                        'k': 5,  # Извлекаем один наиболее релевантный результат
+                        'fetch_k': 10,
+                        'lambda_mult': 0.1
+                    }
+                ).invoke(
+                    f"Documentation for component: {component_with_err} "
+                )
+                info_to_fix.append(doc_info)
+
+    return info_to_fix
+
+
 def revise_code(state: InterfaceGeneratingState):
     interface_debugger_chain = (
             {
-                "useful_info": lambda x: format_docs(
-                    db.as_retriever(
-                        search_type="mmr",
-                        search_kwargs={
-                            'k': 3,
-                            'fetch_k': 10,
-                            'lambda_mult': 0.25
-                        }
-                    ).invoke(str(x["errors_list"]) + x["interface_code"])
-                ),  # Get context and format it
-                "query": lambda x: x["query"],  # Pass the question unchanged
+                "useful_info": lambda x: debug_docs(x["interface_code"], x["errors_list"]),
+                # Передаём найденные доки по ошибкам
+                "query": lambda x: x["query"],  # Передаём запрос пользователя
                 "json_structure": lambda x: x["json_structure"],
                 "interface_code": lambda x: x["interface_code"],
                 "errors_list": lambda x: x["errors_list"]
@@ -185,8 +210,6 @@ def revise_code(state: InterfaceGeneratingState):
             | llm
             | JsonOutputParser(pydantic_object=RefactoredInterface)
     )
-
-
 
     fixes = interface_debugger_chain.invoke(
         {
@@ -217,7 +240,7 @@ def compile_code(state: InterfaceGeneratingState):
     if validation_result["valid"]:
         state.errors = ""
     else:
-        state.errors = "ERRORS: \n" + str(validation_result["errors"])
+        state.errors = validation_result["errors"]
 
     return state
 
@@ -233,7 +256,7 @@ def compile_interface(state: InterfaceGeneratingState):
 
 def generate(query: str) -> str:
     logging.info(f"Starting generation for query: {query}")
-    
+
     try:
         cur_state = InterfaceGeneratingState(query=query)
         builder = StateGraph(InterfaceGeneratingState)
@@ -255,7 +278,7 @@ def generate(query: str) -> str:
 
         memory = MemorySaver()
         graph = builder.compile(checkpointer=memory)
-        
+
         # Set up configuration with retry mechanism
         config = {
             "configurable": {"thread_id": "42"},
@@ -291,4 +314,5 @@ def _add_error_handling(func):
             logging.error(f"Error in {func.__name__}: {str(e)}")
             state.errors = f"Error in {func.__name__}: {str(e)}"
             return state
+
     return wrapper

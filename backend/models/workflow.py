@@ -175,7 +175,7 @@ def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
     info_to_fix = [""]
 
     for err in errors_list:
-        if "Type" in err["message"]:
+        if "Type" or "Property" in err["message"]:
             component_with_err = extract_component_by_error_line(code, int(
                 (err["location"]).split(" ")[4]))  # Извлекаем компонент по строке с ошибкой
             print(f"COMPONENT WITH ERROR {component_with_err}")

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, createElement } from '
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code, Image as ImageIcon, Maximize2, Download, Copy, Minimize2 } from 'lucide-react'
+import { SendIcon, Loader2, Plus, MessageSquare, Eye, Code, Image as ImageIcon, Maximize2, Download, Copy, Minimize2, Check } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
@@ -33,6 +33,15 @@ interface Version {
   code: string
 }
 
+const DummyComponent = () => {
+  return (
+    <div>
+      <h1>Dummy Component</h1>
+      <p>This is a dummy component generated in admin mode.</p>
+    </div>
+  );
+}
+
 const UiGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -46,6 +55,8 @@ const UiGenerator = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isAdminMode, setIsAdminMode] = useState(false)
   const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('iframe')
+  const [currentVersion, setCurrentVersion] = useState(1)
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
@@ -53,11 +64,26 @@ const UiGenerator = () => {
 
   useEffect(() => {
     if (generatedCode) {
-      setEditableCode(generatedCode)
-      setVersions(prev => [...prev, { id: Date.now().toString(), code: generatedCode }])
-      setSelectedVersion(Date.now().toString())
+      const newVersion = {
+        id: (versions.length + 1).toString(),
+        code: generatedCode
+      };
+      setVersions(prev => [...prev, newVersion]);
+      setSelectedVersion(newVersion.id);
+      setCurrentVersion(versions.length + 1);
+      setEditableCode(generatedCode);
+      updateIndexFile(generatedCode);
     }
   }, [generatedCode])
+
+  const updateIndexFile = useCallback(async (code: string) => {
+    try {
+      await axios.post('http://localhost:5000/update-preview', { code });
+      console.log('index.tsx updated successfully');
+    } catch (error) {
+      console.error('Error updating index.tsx:', error);
+    }
+  }, []);
 
   const handleSendAndGenerate = async () => {
     if (!input.trim()) {
@@ -73,10 +99,9 @@ const UiGenerator = () => {
     setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     if (isAdminMode) {
-      // Dummy response for admin mode
       setTimeout(() => {
         const dummyCode = `
-function DummyComponent() {
+const DummyComponent = () => {
   return (
     <div>
       <h1>Dummy Component</h1>
@@ -84,6 +109,8 @@ function DummyComponent() {
     </div>
   );
 }
+
+export default DummyComponent;
         `;
         setGeneratedCode(dummyCode);
         setEditableCode(dummyCode);
@@ -113,6 +140,8 @@ function DummyComponent() {
         setEditableCode(generatedCode);
         console.log('Editable code updated');
 
+        await updateIndexFile(generatedCode);
+
         setShowDesign(true);
         console.log('Show design set to true');
 
@@ -140,12 +169,13 @@ function DummyComponent() {
   }
 
   const handleOpenDesignHistory = () => {
-    alert('Функция истории дизайнов не реализована в этой демо-версии.')
+    alert('Функция итории дизайнов не реализована в этой демо-версии.')
   }
 
   const handleCodeChange = useCallback((code: string) => {
     setEditableCode(code)
-  }, [])
+    updateIndexFile(code);
+  }, [updateIndexFile])
 
   const renderComponent = (Component: any): React.ReactNode => {
     if (typeof Component === 'function') {
@@ -208,7 +238,7 @@ function DummyComponent() {
     const element = document.createElement("a");
     const file = new Blob([editableCode], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "generated-code.js";
+    element.download = "generated-component.tsx";
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -216,10 +246,10 @@ function DummyComponent() {
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(editableCode).then(() => {
-      alert("Код скопирован в буфер обмена!");
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
     }, (err) => {
       console.error('Не удалось скопировать текст: ', err);
-      alert("Не удалось скопировать код. Пожалуйста, попробуйте еще раз.");
     });
   }
 
@@ -257,13 +287,14 @@ function DummyComponent() {
             <h1 className="text-2xl font-bold text-[#0053A0]">ИИ Генератор Интерфейса</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 bg-[#E6F0F9] p-2 rounded-md">
               <Switch
                 id="admin-mode"
                 checked={isAdminMode}
                 onCheckedChange={setIsAdminMode}
+                className="data-[state=checked]:bg-[#0053A0]"
               />
-              <Label htmlFor="admin-mode">Режим администратора</Label>
+              <Label htmlFor="admin-mode" className="text-[#0053A0] font-medium">Режим администратора</Label>
             </div>
             <Button variant="outline" size="sm" onClick={handleCreateNewDesign} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
               <Plus className="h-4 w-4 mr-2" />
@@ -280,7 +311,7 @@ function DummyComponent() {
             <CardContent>
               {messages.map((message) => (
                 <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-[#0053A0]'}`}>
+                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#0053A0] text-white' : 'bg-[#E6F0F9] text-black'}`}>
                     {message.image ? (
                       <img src={message.image} alt="Згруженне изображение" className="max-w-full h-auto rounded" />
                     ) : (
@@ -299,7 +330,7 @@ function DummyComponent() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendAndGenerate()}
             onPaste={handlePaste}
-            className="flex-grow bg-white text-[#0053A0] min-h-[80px] border-[#0053A0]"
+            className="flex-grow bg-white text-black min-h-[80px] border-[#0053A0]"
           />
           <div className="flex flex-col gap-2">
             <Button onClick={handleSendAndGenerate} disabled={isGeneratingUI} className="bg-[#0053A0] text-white hover:bg-[#003D75]">
@@ -348,28 +379,28 @@ function DummyComponent() {
               </Button>
             </div>
             <TabsContent value="code">
-              <div className="mb-4">
-                <label htmlFor="version-select" className="block text-sm font-medium text-[#0053A0] mb-1">
-                  Версия:
-                </label>
-                <select
-                  id="version-select"
-                  value={selectedVersion || ''}
-                  onChange={(e) => {
-                    setSelectedVersion(e.target.value)
-                    const selectedVersionCode = versions.find(v => v.id === e.target.value)?.code
-                    if (selectedVersionCode) {
-                      setEditableCode(selectedVersionCode)
-                    }
-                  }}
-                  className="block w-full mt-1 rounded-md border-[#0053A0] shadow-sm focus:border-[#0053A0] focus:ring focus:ring-[#0053A0] focus:ring-opacity-50"
-                >
+              <div className="mb-4 flex justify-between items-center">
+                <div className="flex space-x-2 overflow-x-auto">
                   {versions.map((version, index) => (
-                    <option key={version.id} value={version.id}>
-                      Верси {index + 1}
-                    </option>
+                    <Button
+                      key={version.id}
+                      variant={selectedVersion === version.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setSelectedVersion(version.id);
+                        setEditableCode(version.code);
+                        setCurrentVersion(index + 1);
+                        updateIndexFile(version.code);
+                      }}
+                      className="flex-shrink-0"
+                    >
+                      V{index + 1}
+                    </Button>
                   ))}
-                </select>
+                </div>
+                <div className="text-sm font-medium text-[#0053A0]">
+                  Current: V{currentVersion}
+                </div>
               </div>
               <div className="relative border-2 border-[#0053A0] rounded-lg overflow-hidden shadow-lg">
                 <Editor
@@ -378,12 +409,13 @@ function DummyComponent() {
                   highlight={(code) => highlight(code, languages.tsx, 'tsx')}
                   padding={20}
                   style={{
-                    fontFamily: '"Fira Code", "Fira Mono", monospace',
+                    fontFamily: '"JetBrains Mono", monospace',
                     fontSize: 14,
                     lineHeight: 1.6,
                     height: 'calc(100vh - 350px)',
                     overflow: 'auto',
-                    backgroundColor: '#f8f9fa',
+                    backgroundColor: '#2d2d2d',
+                    color: '#ccc',
                   }}
                   textareaClassName="focus:outline-none"
                   className="min-h-[400px] focus-within:shadow-outline-blue"
@@ -392,17 +424,22 @@ function DummyComponent() {
                   <Button variant="outline" size="icon" onClick={handleDownloadCode} className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]">
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={handleCopyCode} className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]">
-                    <Copy className="h-4 w-4" />
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleCopyCode} 
+                    className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
+                  >
+                    {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
             </TabsContent>
             <TabsContent value="preview">
               <div className="mb-4">
-                <ToggleGroup type="single" value={previewType} onValueChange={(value) => setPreviewType(value as 'iframe' | 'codesandbox')}>
-                  <ToggleGroupItem value="iframe">Local Preview</ToggleGroupItem>
-                  <ToggleGroupItem value="codesandbox">CodeSandbox</ToggleGroupItem>
+                <ToggleGroup type="single" value={previewType} onValueChange={(value) => setPreviewType(value as 'iframe' | 'codesandbox')} className="bg-[#E6F0F9] p-1 rounded-md">
+                  <ToggleGroupItem value="iframe" className="data-[state=on]:bg-[#0053A0] data-[state=on]:text-white data-[state=off]:text-[#0053A0]">Local Preview</ToggleGroupItem>
+                  <ToggleGroupItem value="codesandbox" className="data-[state=on]:bg-[#0053A0] data-[state=on]:text-white data-[state=off]:text-[#0053A0]">CodeSandbox</ToggleGroupItem>
                 </ToggleGroup>
               </div>
               {previewType === 'iframe' ? (
@@ -429,4 +466,4 @@ function DummyComponent() {
   )
 }
 
-export default UiGenerator
+export default UiGenerator  

@@ -25,7 +25,7 @@ openai_api_key = os.environ.get('OPENAI_API_KEY')
 try:
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
-    llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o-mini")
+    llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o")
     embeddings = OpenAIEmbeddings(api_key=openai_api_key)
     parse_recursivly_store_faiss()
     db = FAISS.load_local(

@@ -8,3 +8,4 @@ langchain-community
 langchain_openai
 langgraph
 chardet
+simsimd

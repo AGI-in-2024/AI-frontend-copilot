@@ -9,7 +9,11 @@ const UiGenerator = dynamic(() => import('./ui-generator'), {
 })
 
 const UiGeneratorWrapper: React.FC = () => {
-  return <UiGenerator />
+  return (
+    <div>
+      <UiGenerator />
+    </div>
+  )
 }
 
 export default UiGeneratorWrapper

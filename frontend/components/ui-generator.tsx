@@ -20,6 +20,8 @@ import { PageEditor } from "./PageEditor";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Sandpack } from "@codesandbox/sandpack-react";
+import { getParameters } from 'codesandbox/lib/api/define';
 
 interface Message {
   id: string
@@ -79,7 +81,11 @@ const UiGenerator = () => {
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
-      await axios.post('http://localhost:5000/update-preview', { code });
+      await axios.post('http://localhost:5000/update-preview', { code }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       console.log('index.tsx updated successfully');
     } catch (error) {
       console.error('Error updating index.tsx:', error);
@@ -258,26 +264,38 @@ export default DummyComponent;
     setIsFullscreen(!isFullscreen);
   }
 
-  const getCodeSandboxUrl = useCallback(() => {
-    const parameters = {
-      files: {
-        'index.js': {
-          content: editableCode,
-        },
-        'package.json': {
-          content: JSON.stringify({
-            dependencies: {
-              react: "latest",
-              "react-dom": "latest",
-              "@nlmk/ds-2.0": "latest",
-            },
-          }),
-        },
+  const getCodeSandboxFiles = useCallback(() => {
+    return {
+      "package.json": {
+        content: JSON.stringify({
+          dependencies: {
+            "react": "^17.0.2",
+            "react-dom": "^17.0.2",
+            "@nlmk/ds-2.0": "latest"
+          }
+        })
+      },
+      "/src/App.js": {
+        content: editableCode,
+      },
+      "/src/index.js": {
+        content: `
+import React from "react";
+import ReactDOM from "react-dom";
+import App from "./App";
+
+ReactDOM.render(<App />, document.getElementById("root"));
+        `,
       },
     };
-    const parametersString = encodeURIComponent(JSON.stringify(parameters));
-    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parametersString}`;
   }, [editableCode]);
+
+  const getCodeSandboxUrl = useCallback(() => {
+    const parameters = getParameters({
+      files: getCodeSandboxFiles() as Record<string, { content: string }>,
+    });
+    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
+  }, [getCodeSandboxFiles]);
 
   return (
     <div className="flex h-screen bg-[#EDEEEF]">
@@ -480,13 +498,15 @@ export default DummyComponent;
                   sandbox="allow-scripts allow-same-origin"
                 />
               ) : (
-                <iframe
-                  src={getCodeSandboxUrl()}
-                  title="CodeSandbox Preview"
-                  className="w-full h-[calc(100vh-240px)] border-none"
-                  allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
-                  sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-                />
+                <div className="w-full h-[calc(100vh-240px)]">
+                  <iframe
+                    src={getCodeSandboxUrl()}
+                    style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
+                    title="CodeSandbox Preview"
+                    allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+                    sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                  />
+                </div>
               )}
             </TabsContent>
           </Tabs>

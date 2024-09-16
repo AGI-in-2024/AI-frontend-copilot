@@ -1,12 +1,12 @@
 import os
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS  # Import CORS
 import traceback
 
 from backend.models.workflow import generate
 
 app = Flask(__name__)
-CORS(app, resources={r"/generate": {"origins": "http://localhost:3000"}})  # Replace with your frontend URL
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
@@ -48,18 +48,39 @@ def health_check():
     return jsonify({"status": "healthy"}), 200
 
 
-@app.route('/update-preview', methods=['POST'])
+@app.route('/update-preview', methods=['POST', 'OPTIONS'])
 def update_preview():
-    code = request.json['code']
-    file_path = '../vite-preview-mode/my-app/src/Home/index.tsx'
-    
-    try:
-        with open(file_path, 'w') as file:
-            file.write(code)
-        return jsonify({"message": "Code updated successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
+    elif request.method == "POST":
+        code = request.json['code']
+        file_path = os.path.join(os.getcwd(), 'vite-preview-mode', 'my-app', 'src', 'Home', 'GeneratedComponent.tsx')
 
+        try:
+            directory = os.path.dirname(file_path)
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+                app.logger.info(f"Created directory: {directory}")
+
+            with open(file_path, 'w') as file:
+                file.write(code)
+            app.logger.info(f"Successfully wrote to file: {file_path}")
+            return _corsify_actual_response(jsonify({"message": "Code updated successfully"}))
+        except Exception as e:
+            error_message = f"Error updating file: {str(e)}\n{traceback.format_exc()}"
+            app.logger.error(error_message)
+            return _corsify_actual_response(jsonify({"error": error_message}), 500)
+
+def _build_cors_preflight_response():
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    response.headers.add('Access-Control-Allow-Headers', "Content-Type")
+    response.headers.add('Access-Control-Allow-Methods', "POST, OPTIONS")
+    return response
+
+def _corsify_actual_response(response, status_code=200):
+    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    return response, status_code
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)

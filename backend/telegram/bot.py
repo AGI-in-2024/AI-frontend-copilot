@@ -21,17 +21,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-TELEGRAM_BOT_TOKEN: Final[str] = os.environ.get('TELEGRAM_BOT_TOKEN', '7530163155:AAE4iMXX9M5Y1r7z1SA1Gzquw0yR_PrWYAI')
+TELEGRAM_BOT_TOKEN: Final[str] = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
 # Initialize ChatAnthropic
-llm = ChatAnthropic(
-    model="claude-3-5-sonnet-20240620",
-    temperature=0,
-    max_tokens=8000,
-    timeout=60,
-    max_retries=2,
-    api_key=os.environ.get('ANTROPIC_API_KEY')
-)
+# llm = ChatAnthropic(
+#     model="claude-3-5-sonnet-20240620",
+#     temperature=0,
+#     max_tokens=8000,
+#     timeout=60,
+#     max_retries=2,
+#     api_key=os.environ.get('ANTROPIC_API_KEY')
+# )
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -47,15 +47,15 @@ async def generate_ui(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.info(f"Generated initial result: {result[:100]}...")  # Log first 100 chars
         
         # Improve the result using ChatAnthropic
-        response = llm.invoke([
-            SystemMessage(content="You are a senior React developer who helps with React code"),
-            HumanMessage(content=f"Improve this code's visibility and style. It should be a fully completed component. Return only code and nothing else. No markdown, no text, no comments, no explanation, just code. Here is the code to improve: {result}"),
-        ])
+        # response = llm.invoke([
+        #     SystemMessage(content="You are a senior React developer who helps with React code"),
+        #     HumanMessage(content=f"Improve this code's visibility and style. It should be a fully completed component. Return only code and nothing else. No markdown, no text, no comments, no explanation, just code. Here is the code to improve: {result}"),
+        # ])
         
-        generated_code = response.content
+        # generated_code = response.content
         
         # Send the generated code
-        await update.message.reply_text(f"{generated_code}")
+        await update.message.reply_text(f"{result}")
     except Exception as e:
         logger.error(f"Error in generate_ui: {str(e)}")
         await update.message.reply_text("An error occurred while generating the UI component. Please try again or simplify your request.")

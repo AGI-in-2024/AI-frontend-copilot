@@ -1,10 +1,14 @@
+import asyncio
+import concurrent.futures
 import logging
 import os
 import re
 from typing import Dict, Any, Union, List
 
+from langchain.retrievers import MultiQueryRetriever
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.runnables import chain
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.constants import END
@@ -13,7 +17,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from backend.models.errors_analizer import extract_component_by_error_line
-from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER
+from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER, init_components_example
 from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
 
@@ -28,8 +32,17 @@ try:
     llm = ChatOpenAI(temperature=0.0, api_key=openai_api_key, model="gpt-4o-mini")
     embeddings = OpenAIEmbeddings(api_key=openai_api_key)
     parse_recursivly_store_faiss()
+
+    validator = TSXValidator()
     db = FAISS.load_local(
         FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True
+    )
+    retriever = db.as_retriever(
+        search_type="mmr",
+        search_kwargs={
+            'k': 4,
+            'lambda_mult': 0.3,
+            'fetch_k': 25}
     )
 except Exception as e:
     logging.error(f"{e}")
@@ -64,7 +77,7 @@ class InterfaceJson(BaseModel):
 
 class RefactoredInterface(BaseModel):
     fixed_code: str = Field(description="Исправленная код интерфейса")
-    fixed_structure: Any = Field(description="Исправленная JSON структура, после фикса ошибок")
+    fixed_structure: list[InterfaceComponent | Any] = Field(description="Исправленная JSON структура, после фикса ошибок")
 
 
 class InterfaceGeneratingState(BaseModel):
@@ -75,7 +88,7 @@ class InterfaceGeneratingState(BaseModel):
     errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
 
-def funnel(state: InterfaceGeneratingState):
+async def funnel(state: InterfaceGeneratingState):
     if llm is None:
         state.errors = "LLM not initialized properly"
         return state
@@ -97,23 +110,21 @@ def funnel(state: InterfaceGeneratingState):
     return state
 
 
-def search_component_docs(queries: list[str]):
-    results = []
-    for query in queries:
-        docs = db.as_retriever(
-            search_type="mmr",
-            search_kwargs={'k': 3, 'lambda_mult': 0.1, 'fetch_k': 25}
-        ).invoke(query)
-        results += docs
-    return results
+@chain
+async def search_docs(queries: list[str]):
+    tasks = [retriever.ainvoke(query) for query in queries]  # создаем задачи для всех запросов
+    results = await asyncio.gather(*tasks)  # выполняем их параллельно
+    docs = [doc for result in results for doc in result]  # собираем все результаты в один список
+    return docs
 
 
-def make_structure(state: InterfaceGeneratingState):
+async def make_structure(state: InterfaceGeneratingState):
     interface_json_chain = (
             {
                 "components_info": lambda x: format_docs(x["components_info"]),
                 "query": lambda x: x["query"],  # Pass the question unchanged
                 "needed_components": lambda x: x["needed_components"],
+                "init_components_example": lambda x: x["init_components_example"],
             }
             | INTERFACE_JSON
             | llm
@@ -124,10 +135,9 @@ def make_structure(state: InterfaceGeneratingState):
         {
             "query": state.query,
             "needed_components": state.components.needed_components,
-            "components_info": search_component_docs(
-                [f"Detailed ARG TYPES of props a component {x.title} can have"
-                 for x in state.components.needed_components] +
-                [f"CODE examples of using {x.title}"
+            "init_components_example": init_components_example,
+            "components_info": await search_docs.ainvoke(
+                [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
                  for x in state.components.needed_components]
             )
         }
@@ -138,7 +148,7 @@ def make_structure(state: InterfaceGeneratingState):
     return state
 
 
-def write_code(state: InterfaceGeneratingState):
+async def write_code(state: InterfaceGeneratingState):
     interface_coder_chain = (
             {
                 "interface_components": lambda x: x["code_sample"],  # Get context and format it
@@ -155,12 +165,9 @@ def write_code(state: InterfaceGeneratingState):
         "query": state.query,
         "json_structure": state.json_structure,
         "code_sample": state.code,
-        "interface_components": search_component_docs(
-            [f"The best CODE examples of using {x.title} component"
-             for x in state.components.needed_components] +
-            [f"Styles definition of {x.title}'s props"
+        "interface_components": await search_docs.ainvoke(
+            [f"The best CODE examples of using {x.title} component related to {x.reason}"
              for x in state.components.needed_components]
-
         )
     })
 
@@ -171,52 +178,51 @@ def write_code(state: InterfaceGeneratingState):
     return state
 
 
-def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
-    info_to_fix = [""]
+async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
+    queries = []
+    code_lines = code.split("\n")
 
     for err in errors_list:
-        if "Type" or "Property" in err["message"]:
-            component_with_err = extract_component_by_error_line(code, int(
-                (err["location"]).split(" ")[4]))  # Извлекаем компонент по строке с ошибкой
-            print(f"COMPONENT WITH ERROR {component_with_err}")
+        cur_line = code_lines[int((err["location"]).split(" ")[4]) - 1]
+        if "Type" in err["message"]:
+            queries.append(f"Types and Code samples to debug {cur_line} with error {err["message"]}")
+        elif "Property" in err["message"]:
+            queries.append(f"Props to debug {cur_line} with error {err["message"]}")
+        elif "Children" in err["message"]:
+            queries.append(f"Children types to debug {cur_line} with error {err["message"]}")
 
-            if len(component_with_err.split(' ')) == 1:
-                doc_info = db.as_retriever(
-                    search_type="mmr",
-                    search_kwargs={
-                        'k': 5,  # Извлекаем один наиболее релевантный результат
-                        'fetch_k': 10,
-                        'lambda_mult': 0.1
-                    }
-                ).invoke(
-                    f"Documentation for component: {component_with_err} "
-                )
-                info_to_fix.append(doc_info)
+    res = "No special information needed to fix these errors"
+    if queries:
+        res = await search_docs.ainvoke(queries)
 
-    return info_to_fix
+    return res
 
 
-def revise_code(state: InterfaceGeneratingState):
+async def revise_code(state: InterfaceGeneratingState):
     interface_debugger_chain = (
             {
-                "useful_info": lambda x: debug_docs(x["interface_code"], x["errors_list"]),
+                "useful_info": lambda x: x["useful_info"],
                 # Передаём найденные доки по ошибкам
                 "query": lambda x: x["query"],  # Передаём запрос пользователя
                 "json_structure": lambda x: x["json_structure"],
                 "interface_code": lambda x: x["interface_code"],
-                "errors_list": lambda x: x["errors_list"]
+                "errors_list": lambda x: x["errors_list"],
+                "init_components_example": lambda x: x["init_components_example"]
             }
             | DEBUGGER
             | llm
             | JsonOutputParser(pydantic_object=RefactoredInterface)
     )
+    docs = await debug_docs(state.code, state.errors)
 
     fixes = interface_debugger_chain.invoke(
         {
             "query": state.query,
             "json_structure": state.json_structure,
             "interface_code": state.code,
-            "errors_list": state.errors
+            "errors_list": state.errors,
+            "useful_info": docs,
+            "init_components_example": init_components_example
         }
     )
 
@@ -228,11 +234,10 @@ def revise_code(state: InterfaceGeneratingState):
     return state
 
 
-def compile_code(state: InterfaceGeneratingState):
+async def compile_code(state: InterfaceGeneratingState):
     tsx_code = state.code
     clean_code = re.sub(r"```tsx\s*|\s*```", "", tsx_code)
     state.code = clean_code
-    validator = TSXValidator()
     validation_result = validator.validate_tsx(clean_code.strip())
 
     print(f"Validation res: {validation_result}")
@@ -245,7 +250,7 @@ def compile_code(state: InterfaceGeneratingState):
     return state
 
 
-def compile_interface(state: InterfaceGeneratingState):
+async def compile_interface(state: InterfaceGeneratingState):
     compiling_res = state.errors
     if not compiling_res:
         return END
@@ -254,7 +259,7 @@ def compile_interface(state: InterfaceGeneratingState):
         return "debug"
 
 
-def generate(query: str) -> str:
+async def generate(query: str) -> str:
     logging.info(f"Starting generation for query: {query}")
 
     try:
@@ -286,7 +291,7 @@ def generate(query: str) -> str:
         }
 
         try:
-            state = graph.invoke(cur_state, config)
+            state = await graph.ainvoke(cur_state, config)
             logging.info("Generation process completed successfully.")
             if isinstance(state, dict):
                 logging.info(f"Final state errors: {state.get('errors', 'No errors')}")

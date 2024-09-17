@@ -21,7 +21,7 @@ llm = ChatAnthropic(
 )
 
 @app.route('/generate', methods=['POST'])
-def generate_ui():
+async def generate_ui():
     app.logger.info("Received request to /generate")
     data = request.json
     app.logger.info(f"Received data: {data}")
@@ -34,18 +34,19 @@ def generate_ui():
 
     try:
         app.logger.info(f"Processing question: {question}")
-        result = generate(question)
+        result = await generate(question)
         app.logger.info(f"Generated result: {result[:100]}...")  # Log first 100 chars
-        # result = jsonify({"result": result})
-        response = llm.invoke([
-            SystemMessage(content="You are a helpful assistant that improves visability of react code, keeps all nlmk components, and returns only code and nothing else. no ```"),
-            HumanMessage(content=f"Here is the code, improve it: {result}")  # Assuming 'result' is a Response object
-        ]
-        )
+        result = jsonify({"result": result})
+        # response = llm.invoke([
+        #     SystemMessage(content="You are a helpful assistant that improves visability of react code, keeps all nlmk components, and returns only code and nothing else. no ```"),
+        #     HumanMessage(content=f"Here is the code, improve it: {result}")  # Assuming 'result' is a Response object
+        # ]
+        # )
         
-        return jsonify({"result": response.content})
-    
-    except Exception as e:  
+        # return jsonify({"result": response.content})
+        return result
+
+    except Exception as e:
         app.logger.error(f"Error in generate_ui: {str(e)}")
         app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500

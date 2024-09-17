@@ -59,36 +59,47 @@ FUNNEL_ITER = ChatPromptTemplate.from_messages(
 )
 
 
+init_components_example = """
+initialized_components: [
+                {
+                    "signature": "Component or Subcomponent signature",   # The name of the component or subcomponent from NLMK
+                    "used_reason": "A clear explanation of why this component is used here",  # Reason for this component's presence
+                    "props": { ... },   # A dictionary of props initialized with the provided types and values
+                    "children": [ ... ] # A list of child components, initialized and valid per NLMK rules
+                }
+            ]"""
+
+
 INTERFACE_JSON = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a highly experienced front-end TypeScript developer specializing in React. You are familiar with complex component libraries and can quickly understand new components by reviewing their source code and documentation. Your task is to help build a structured interface based on the user's query using components from the NLMK React design system."
+            "You are a highly experienced front-end TypeScript developer specializing in React. You have deep expertise in component libraries and can quickly understand and apply new components by reviewing their source code and documentation. Your task is to help construct a well-structured interface strictly following the user's request using only components from the NLMK React design system."
         ),
         (
             "human",
             """User's query:
-             {query}
+            {query}
 
-            You MUST use components only from the provided list:
+            STRICT REQUIREMENTS:
+            1. **Components**: You MUST use only the components from the provided list:
             {needed_components}
 
-            Here are information of props TYPES for these components and some code examples:
+            2. **Prop Usage**: All components must use their provided props, respecting the given prop types and values. Initialize all props based on the information provided ONLY in bool or str FORMAT!:
             {components_info}
 
-            Your response must be a strictly formatted JSON structured list:
-            initialized_components: [
-                dict(
-                    "signature": "Component or Subcomponent signature",   # то как вызывается компонент или подкомпонент из NLMK
-                    "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
-                    "props": dict of props, if they are,               # инициализированные пропсы компонента
-                    "children": list[ VALID INITIALIZED CHILDREN ELEMENTS],  # список инициализированных элементов
-                )
-            ]
-            Put only NLMK COMPONENTS and be sure to init props that i give you earlier!
-            DONT WRAP result in '''json...'''
-            DONT add things like '() => ...' If you are initializing props func - then just describe what should it do!
-            """
+            3. **Functional Props**: If a prop is expected to be a function, JUST DESCRIBE ITS BEHAVIOR in str format!.
+
+            4. **Children**: Ensure that components correctly nest their child components where applicable, based on the structure defined in the **Components**. Use the components from the list, ensuring valid child-parent relationships.
+
+            5. **JSON Output**: Your response must be a clear JSON-structured list with no ```formatting:
+            {init_components_example}
+
+            6. **NO Additional Wrapping**: Do not wrap the output in unnecessary JSON blocks or other wrappers. Provide only the required JSON structure.
+
+            7. **Focus**: Stick strictly to the provided components and initialize only their available props and children. Avoid creating additional elements not in the list.
+
+            Respond with a valid, cleanly formatted JSON structure, ensuring all components and props are properly initialized based on the details provided."""
         ),
     ]
 )
@@ -221,13 +232,15 @@ code_sample = """
             // Export the main component
             export default Interface;
             ```
+            
+            DONT ADD ANY COMMENTS IN THE CODE!
             """
 
 DEBUGGER = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to review and correct TypeScript code for a user interface based on the structure provided in a JSON description and a list of identified issues. You will return a JSON object with the corrected code and the interface structure where you need to EDIT lines, the errors came from!."
+            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to review and correct TypeScript code for a user interface based on the provided JSON structure and a list of identified issues. You should modify only the specific lines of code that contain the errors, while ensuring the overall structure and functionality of the interface remains correct."
         ),
         (
             "human",
@@ -245,30 +258,26 @@ DEBUGGER = ChatPromptTemplate.from_messages(
             {useful_info}
 
             Your task is to:
-            - Use the location and details provided in the errors to directly target the problematic code sections.
-            - You can edit import line to fix bugs, by removing non-existent components
-            - Prioritize fixing the TypeScript code first. Make any necessary changes to resolve the errors provided in the error list.
-            - If the JSON structure is incorrect and causing issues, make the necessary adjustments **only after** the code is fixed.
-            - Ensure the corrected TypeScript code adheres to best practices and is formatted properly for use in a TypeScript React project.
-            - Ensure the code uses only pure React and components from '@nlmk/ds-2.0', as specified in the JSON and the provided examples.
-            - Resolve all errors mentioned in the errors list before returning the result.
-            
+            1. **Fix TypeScript errors**: 
+               - Use the location and details provided in the error messages to directly target the problematic code sections.
+               - Prioritize fixing TypeScript errors related to types and properties. For example, fix any issues related to type mismatches (`TS2322`) or incorrect property usage.
+               - If a specific type or property does not match, replace it with the correct one based on the documentation or provided examples in `useful_info`.
+            2. **Ensure compatibility**: 
+               - The code must use components and props strictly from the '@nlmk/ds-2.0' library. You may adjust imports or remove unused components to fix the errors.
+            3. **Review JSON structure**: 
+               - After fixing the code, ensure that the JSON structure is accurate and fully reflects the interface components and their properties.
+               - If necessary, make adjustments to the JSON structure based on the fixed code, but only after resolving the code issues.
+            4. **Correct Formatting**:
+               - Ensure the corrected TypeScript code follows best practices and is properly formatted for use in a React project.
+               - Provide the corrected code and updated JSON structure in the format below.
 
-            Return the result as a JSON with the following items:
-                "fixed_code": "<corrected TypeScript code as a string>",
-                "fixed_structure": corrected JSON structure as a dict( 
-                    initialized_components : [
-                        dict(
-                            "signature": "Component or Subcomponent signature",   # то как вызывается компонент или подкомпонент из NLMK
-                            "used_reason": "Its primary functionality",  # для чего этот компонент тут находится
-                            "props": dict of props, if they are,               # инициализированные пропсы компонента
-                            "children": list[ VALID INITIALIZED CHILDREN ELEMENTS]  # список инициализированных элементов       
-                        )
-                    ]
-                )
-            DONT WRAP result in '''json...'''
-            DONT add things like '() =>..' If you are initializing props func - then just describe what should it do!
+            Return the result as a JSON with the following keys:
+            "fixed_code": "<corrected TypeScript code as a string>",
+            "fixed_structure": {init_components_example}
+
+            Do NOT wrap the result in extra JSON blocks. If you are initializing props functions in the JSON structure, just describe their behavior.
             """
         ),
     ]
 )
+

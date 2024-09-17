@@ -62,7 +62,7 @@ const UiGenerator = () => {
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: '1', text: "Здравствуйте! Как я могу поочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
   }, [])
 
   useEffect(() => {
@@ -96,7 +96,7 @@ const UiGenerator = () => {
 
   const handleSendAndGenerate = async () => {
     if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопро�� или описание для интерфейса.", sender: 'ai' }]);
       return;
     }
 
@@ -130,7 +130,9 @@ export default DummyComponent;
     } else {
       try {
         console.log('Sending request to backend...');
-        const backendUrl = 'http://localhost:5000/api/generate';
+        const backendUrl = process.env.NODE_ENV === 'production' 
+          ? 'http://83.229.82.52:5000/api/generate'
+          : 'http://localhost:5000/api/generate';
         console.log('Backend URL:', backendUrl);
         const response = await axios.post(backendUrl, { question: input }, {
           headers: {
@@ -160,7 +162,7 @@ export default DummyComponent;
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
       } catch (error: unknown) {
         console.error('Error generating UI:', error);
-        let errorMessage = 'Произошла неизвестная ошибка при генерации интерфейса.';
+        let errorMessage = 'Произоша неизвестная ошибка при генерации интерфейса.';
         
         if (axios.isAxiosError(error)) {
           if (error.code === 'ECONNABORTED') {
@@ -229,7 +231,7 @@ export default DummyComponent;
       reader.onload = (e) => {
         const newMessage: Message = {
           id: Date.now().toString(),
-          text: "Изображение загружено",
+          text: "Изобажение загружено",
           sender: 'user',
           image: e.target?.result as string
         }
@@ -312,7 +314,10 @@ ReactDOM.render(<App />, document.getElementById("root"));
 
   const getCodeSandboxUrl = useCallback(() => {
     const parameters = getParameters({
-      files: getCodeSandboxFiles() as Record<string, { content: string }>,
+      files: Object.entries(getCodeSandboxFiles()).reduce((acc, [key, value]) => {
+        acc[key] = { ...value, isBinary: false };
+        return acc;
+      }, {} as Record<string, { content: string; isBinary: boolean }>),
     });
     return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
   }, [getCodeSandboxFiles]);

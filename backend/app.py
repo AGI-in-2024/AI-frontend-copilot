@@ -9,7 +9,7 @@ from backend.models.workflow import generate
 
 app = Flask(__name__)
 # Update CORS configuration to allow requests from the frontend development server
-CORS(app)  # This allows all origins - only use for debugging!
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://83.229.82.52:3000"]}}})  # This allows all origins - only use for debugging!
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",
@@ -102,13 +102,13 @@ def update_preview():
 
 def _build_cors_preflight_response():
     response = make_response()
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
     response.headers.add('Access-Control-Allow-Headers', "Content-Type")
     response.headers.add('Access-Control-Allow-Methods', "POST, OPTIONS")
     return response
 
 def _corsify_actual_response(response, status_code=200):
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
     return response, status_code
 
 @app.route('/ping', methods=['GET'])

@@ -3,9 +3,10 @@ import sys
 import logging
 from typing import Final
 from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import SystemMessage, HumanMessage
+import asyncio
+
 
 # Add the project root directory to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -21,7 +22,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-TELEGRAM_BOT_TOKEN: Final[str] = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_BOT_TOKEN: Final[str] = os.environ.get('TELEGRAM_BOT_TOKEN', '7514422906:AAFMtZx2Y5FD83dD7SdGZStzLk4TvMKkSHs')
+MAX_MESSAGE_LENGTH: Final[int] = 4096  # Telegram's max message length
 
 # Initialize ChatAnthropic
 # llm = ChatAnthropic(
@@ -42,20 +44,24 @@ async def generate_ui(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     user_input = update.message.text
     
     try:
-        # Generate initial result
-        result = generate(user_input)
+        # Show typing indicator
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+        
+        # Generate initial result (increased timeout to 15 minutes)
+        result = await asyncio.wait_for(asyncio.to_thread(generate, user_input), timeout=900)
         logger.info(f"Generated initial result: {result[:100]}...")  # Log first 100 chars
         
-        # Improve the result using ChatAnthropic
-        # response = llm.invoke([
-        #     SystemMessage(content="You are a senior React developer who helps with React code"),
-        #     HumanMessage(content=f"Improve this code's visibility and style. It should be a fully completed component. Return only code and nothing else. No markdown, no text, no comments, no explanation, just code. Here is the code to improve: {result}"),
-        # ])
-        
-        # generated_code = response.content
-        
-        # Send the generated code
-        await update.message.reply_text(f"{result}")
+        # Split and send the generated code in chunks
+        for i in range(0, len(result), MAX_MESSAGE_LENGTH):
+            chunk = result[i:i+MAX_MESSAGE_LENGTH]
+            await update.message.reply_text(chunk)
+            await asyncio.sleep(0.5)  # Small delay between messages for better UX
+    except asyncio.TimeoutError:
+        logger.error("Generation process timed out after 15 minutes")
+        await update.message.reply_text("The generation process took too long. Please try a simpler request or contact the administrator.")
+    except RecursionError as e:
+        logger.error(f"RecursionError in generate_ui: {str(e)}")
+        await update.message.reply_text("The generation process hit a recursion limit. Please try a simpler request or contact the administrator to increase the limit.")
     except Exception as e:
         logger.error(f"Error in generate_ui: {str(e)}")
         await update.message.reply_text("An error occurred while generating the UI component. Please try again or simplify your request.")

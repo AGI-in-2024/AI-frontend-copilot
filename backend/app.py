@@ -34,17 +34,25 @@ def generate_ui():
 
     question = data['question']
 
+    # system_message = "You senior react developer helps with react code"
+    # user_message = f"""
+    # Improve this ui, keep all the original components.
+    # Returns only code and nothing else. no markdown, no text, no comments, no explanation, no nothing, just code. Here is the code, improve it: {result}
+    # """
+
     try:
         app.logger.info(f"Processing question: {question}")
         result = generate(question)
         app.logger.info(f"Generated result: {result[:100]}...")  # Log first 100 chars
         
-        response = llm.invoke([
-            SystemMessage(content="You senior react developer helps with react code"),
-            HumanMessage(content=f"Keeps all nlmk components, improve this code visiability and style, it should full complited component. add style and other code if needed to improve this ui. returns only code and nothing else. no markdown, no text, no comments, no explanation, no nothing, just code. Here is the code, improve it: {result}"),
-        ])
+        # response = llm.invoke([
+        #     SystemMessage(content=system_message),
+        #     HumanMessage(content=user_message),
+        # ])
         
-        return jsonify({"result": response.content})
+        # return jsonify({"result": response.content})
+    
+        return jsonify({"result": result})
     
     except Exception as e:  
         app.logger.error(f"Error in generate_ui: {str(e)}")
@@ -63,7 +71,7 @@ def debug_request():
         "headers": dict(request.headers)
     })
 
-
+    
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"}), 200
@@ -107,6 +115,23 @@ def _corsify_actual_response(response, status_code=200):
 def ping():
     app.logger.info("Received ping request")
     return jsonify({"message": "pong"}), 200
+
+@app.route('/preview', methods=['POST'])
+def preview():
+    data = request.json
+    generated_code = data.get('code')
+    
+    if not generated_code:
+        return jsonify({"error": "No code provided"}), 400
+    
+    file_path = 'vite-preview-mode/my-app/src/Home/GeneratedComponent.tsx'
+    
+    try:
+        with open(file_path, 'w') as file:
+            file.write(generated_code)
+        return jsonify({"message": "Code successfully written to file"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to write code to file: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

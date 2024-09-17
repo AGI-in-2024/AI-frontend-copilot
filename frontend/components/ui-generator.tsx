@@ -136,7 +136,7 @@ export default DummyComponent;
           headers: {
             'Content-Type': 'application/json',
           },
-          timeout: 60000 // Increase timeout to 60 seconds
+          timeout: 600000 // Increase timeout to 120 seconds (2 minutes)
         });
         console.log('Received response from backend:', response.data);
         const generatedCode = response.data.result;

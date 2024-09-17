@@ -1,0 +1,16 @@
+{
+  "name": "tsx-validator",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "typescript": "^5.2.2",
+    "@nlmk/ds-2.0": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.0"
+  }
+}

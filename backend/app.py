@@ -9,7 +9,7 @@ from backend.models.workflow import generate
 
 app = Flask(__name__)
 # Update CORS configuration to allow requests from the frontend development server
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://83.229.82.52:3000"]}}})  # This allows all origins - only use for debugging!
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://83.229.82.52:3000"]}})  # This allows all origins - only use for debugging!
 
 llm = ChatAnthropic(
     model="claude-3-5-sonnet-20240620",

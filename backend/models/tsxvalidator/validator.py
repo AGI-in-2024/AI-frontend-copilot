@@ -26,8 +26,9 @@ class TSXValidator:
         self.base_dir = Path(base_dir).resolve()
         self.npm_path = shutil.which("npm") or "npm"
         self.use_shell = sys.platform.startswith("win")
-        self.tsc_path: Optional[str] = None
-        self.setup_environment()
+        self.tsc_path: Optional[str] = self._check_typescript()
+        if not self.base_dir.is_dir():
+            self.setup_environment()
 
     def setup_environment(self):
         logger.info(f"Настройка окружения в {self.base_dir}")
@@ -51,7 +52,7 @@ class TSXValidator:
                 "@types/react": "^18.2.21",
                 "@types/react-dom": "^18.2.7",
                 "typescript": "^5.2.2",
-                "@nlmk/ds-2.0": "latest"
+                "@nlmk/ds-2.0": "2.5.3"
             },
             "devDependencies": {
                 "@types/node": "^18.15.0"
@@ -80,7 +81,7 @@ class TSXValidator:
                 "isolatedModules": True,
                 "noEmit": True,
                 "jsx": "react-jsx",
-                "baseUrl": ".",
+                "baseUrl": "./tsx_validator_env",
                 "paths": {
                     "@components/*": ["node_modules/@nlmk/ds-2.0/lib/dist/components/*"]
                 }

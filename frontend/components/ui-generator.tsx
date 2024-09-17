@@ -96,7 +96,7 @@ const UiGenerator = () => {
 
   const handleSendAndGenerate = async () => {
     if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопро�� или описание для интерфейса.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопро или описание для интерфейса.", sender: 'ai' }]);
       return;
     }
 
@@ -131,8 +131,8 @@ export default DummyComponent;
       try {
         console.log('Sending request to backend...');
         const backendUrl = process.env.NODE_ENV === 'production' 
-          ? 'http://83.229.82.52:5000/api/generate'
-          : 'http://localhost:5000/api/generate';
+          ? process.env.NEXT_PUBLIC_BACKEND_URL_PRODUCTION
+          : process.env.NEXT_PUBLIC_BACKEND_URL_DEVELOPMENT;
         console.log('Backend URL:', backendUrl);
         const response = await axios.post(backendUrl, { question: input }, {
           headers: {
@@ -389,7 +389,7 @@ ReactDOM.render(<App />, document.getElementById("root"));
         </Card>
         <div className="flex items-end gap-2 bg-white p-2 rounded-t-none rounded-b-lg">
           <Textarea 
-            placeholder="Опишите ваш интерфейс..."
+            placeholder="Опшите ваш интерфейс..."
             value={input} 
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendAndGenerate()}

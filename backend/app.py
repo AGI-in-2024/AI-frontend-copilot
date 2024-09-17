@@ -2,11 +2,23 @@ import os
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS  # Import CORS
 import traceback
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from backend.models.workflow import generate
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+
+# Initialize the Claude model
+llm = ChatAnthropic(
+    model="claude-3.5-sonnet",
+    temperature=0.3,
+    max_tokens=8000,
+    timeout=None,
+    max_retries=2,
+    api_key=os.environ.get('ANTROPIC_API_KEY')
+)
 
 @app.route('/generate', methods=['POST'])
 def generate_ui():
@@ -24,7 +36,15 @@ def generate_ui():
         app.logger.info(f"Processing question: {question}")
         result = generate(question)
         app.logger.info(f"Generated result: {result[:100]}...")  # Log first 100 chars
-        return jsonify({"result": result})
+        # result = jsonify({"result": result})
+        response = llm.invoke([
+            SystemMessage(content="You are a helpful assistant that improves visability of react code, keeps all nlmk components, and returns only code and nothing else. no ```"),
+            HumanMessage(content=f"Here is the code, improve it: {result}")  # Assuming 'result' is a Response object
+        ]
+        )
+        
+        return jsonify({"result": response.content})
+    
     except Exception as e:  
         app.logger.error(f"Error in generate_ui: {str(e)}")
         app.logger.error(f"Traceback: {traceback.format_exc()}")

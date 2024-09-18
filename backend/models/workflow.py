@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from backend.models.errors_analizer import extract_component_by_error_line
-from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER, init_components_example
+from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER, init_components_example, \
+    FUNNEL_ITER, INTERFACE_JSON_ITER
 from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
 
@@ -44,6 +45,8 @@ try:
             'lambda_mult': 0.3,
             'fetch_k': 25}
     )
+    memory = MemorySaver()
+    components_descs = get_comps_descs()
 except Exception as e:
     logging.error(f"{e}")
 
@@ -62,6 +65,12 @@ class FunnelOutput(BaseModel):
         description="список необходимых компонентов для реализииции запроса пользователя")
 
 
+class FunnelIterOutput(BaseModel):
+    instructions: Union[Dict[str, Any], None] = Field(description="Подробная инструкция по тому что нужно сделать")
+    components_to_modify: list[Component] = Field(
+        description="Список компонентов которые требуют модификации в имеющейся реализации")
+
+
 class InterfaceComponent(BaseModel):
     signature: str = Field(description="# то как вызывается компонент или подкомпонент из NLMK")
     props: Union[Dict[str, Any], None] | Any = Field(description="Словарь пропсов и их значений")
@@ -77,7 +86,8 @@ class InterfaceJson(BaseModel):
 
 class RefactoredInterface(BaseModel):
     fixed_code: str = Field(description="Исправленная код интерфейса")
-    fixed_structure: list[InterfaceComponent | Any] = Field(description="Исправленная JSON структура, после фикса ошибок")
+    fixed_structure: list[InterfaceComponent | Any] = Field(
+        description="Исправленная JSON структура, после фикса ошибок")
 
 
 class InterfaceGeneratingState(BaseModel):
@@ -87,25 +97,43 @@ class InterfaceGeneratingState(BaseModel):
     code: str | None = Field(default=code_sample, description="Код компонента")
     errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
+    new_query: str | None = Field(default=None, description="Новый запрос для изменения текущего интерфейса")
+    instructions: list[Union[Dict[str, Any], None]] | None = Field(default=None, description="Подробная инструкция по тому как улучшить интерфейс")
+    components_to_modify: list[Component] | None = Field(default=None,
+        description="Список компонентов которые требуют модификации в имеющейся реализации")
+
 
 async def funnel(state: InterfaceGeneratingState):
     if llm is None:
         state.errors = "LLM not initialized properly"
         return state
+    if state.new_query:
+        iter_funnel_chain = FUNNEL_ITER | llm | JsonOutputParser(pydantic_object=FunnelIterOutput)
+        res = iter_funnel_chain.invoke(
+            input={
+                "previous_query": state.query,
+                "new_query": state.new_query,
+                "existing_interface_json": state.json_structure,
+                "components": components_descs
+            }
+        )
 
-    comps_funnel_chain = FUNNEL | llm | JsonOutputParser(pydantic_object=FunnelOutput)
-    components_descs = get_comps_descs()
+        # app.logger.info(f"cur state is {state}")
+        print(f"\n\nITER_FUNNEL out: {res}")
+        state.instructions = res["instructions"]
+        state.components_to_modify = res["components_to_modify"]
+    else:
+        funnel_chain = FUNNEL | llm | JsonOutputParser(pydantic_object=FunnelOutput)
+        res = FunnelOutput(**funnel_chain.invoke(
+            input={
+                "query": state.query,
+                "components": components_descs
+            }
+        ))
 
-    res = FunnelOutput(**comps_funnel_chain.invoke(
-        input={
-            "query": state.query,
-            "components": components_descs
-        }
-    ))
-
-    # app.logger.info(f"cur state is {state}")
-    print(f"\n\nNeeded comps {res}")
-    state.components = res
+        # app.logger.info(f"cur state is {state}")
+        print(f"\n\nNeeded comps {res}")
+        state.components = res
 
     return state
 
@@ -119,32 +147,62 @@ async def search_docs(queries: list[str]):
 
 
 async def make_structure(state: InterfaceGeneratingState):
-    interface_json_chain = (
+
+    if state.new_query:
+        iter_interface_json_chain = (
+                {
+                    "components_info": lambda x: format_docs(x["components_info"]),
+                    "new_query": lambda x: x["new_query"],  # Pass the question unchanged
+                    "existing_interface_json": lambda x: x["existing_interface_json"],
+                    "modification_instructions": lambda x: x["modification_instructions"],
+                    "init_components_example": lambda x: x["init_components_example"]
+                }
+                | INTERFACE_JSON_ITER
+                | llm
+                | JsonOutputParser(pydantic_object=InterfaceJson)
+        )
+
+        interface_json = iter_interface_json_chain.invoke(
             {
-                "components_info": lambda x: format_docs(x["components_info"]),
-                "query": lambda x: x["query"],  # Pass the question unchanged
-                "needed_components": lambda x: x["needed_components"],
-                "init_components_example": lambda x: x["init_components_example"],
+                "new_query": state.new_query,
+                "existing_interface_json": state.json_structure,
+                "modification_instructions": state.instructions,
+                "init_components_example": init_components_example,
+                "components_info": await search_docs.ainvoke(
+                    [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.reason}"
+                     for x in state.components_to_modify]
+                )
             }
-            | INTERFACE_JSON
-            | llm
-            | JsonOutputParser(pydantic_object=InterfaceJson)
-    )
+        )
+        state.json_structure = interface_json
+        print(f"\nInterface json {interface_json}")
 
-    interface_json = interface_json_chain.invoke(
-        {
-            "query": state.query,
-            "needed_components": state.components.needed_components,
-            "init_components_example": init_components_example,
-            "components_info": await search_docs.ainvoke(
-                [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
-                 for x in state.components.needed_components]
-            )
-        }
-    )
-    state.json_structure = interface_json
+    else:
+        interface_json_chain = (
+                {
+                    "components_info": lambda x: format_docs(x["components_info"]),
+                    "query": lambda x: x["query"],  # Pass the question unchanged
+                    "needed_components": lambda x: x["needed_components"],
+                    "init_components_example": lambda x: x["init_components_example"],
+                }
+                | INTERFACE_JSON
+                | llm
+                | JsonOutputParser(pydantic_object=InterfaceJson)
+        )
+        interface_json = interface_json_chain.invoke(
+            {
+                "query": state.query,
+                "needed_components": state.components.needed_components,
+                "init_components_example": init_components_example,
+                "components_info": await search_docs.ainvoke(
+                    [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
+                     for x in state.components.needed_components]
+                )
+            }
+        )
+        state.json_structure = interface_json
+        print(f"\nInterface json {interface_json}")
 
-    print(f"\nInterface json {interface_json}")
     return state
 
 
@@ -161,15 +219,26 @@ async def write_code(state: InterfaceGeneratingState):
             | StrOutputParser()
     )
 
-    interface_code = interface_coder_chain.invoke({
-        "query": state.query,
-        "json_structure": state.json_structure,
-        "code_sample": state.code,
-        "interface_components": await search_docs.ainvoke(
-            [f"The best CODE examples of using {x.title} component related to {x.reason}"
-             for x in state.components.needed_components]
-        )
-    })
+    if state.new_query:
+        interface_code = interface_coder_chain.invoke({
+            "query": state.new_query + str(state.instructions),
+            "json_structure": state.json_structure,
+            "code_sample": state.code,
+            "interface_components": await search_docs.ainvoke(
+                [f"The best CODE examples of using {x.title} component related to {x.reason}"
+                 for x in state.components_to_modify]
+            )
+        })
+    else:
+        interface_code = interface_coder_chain.invoke({
+            "query": state.query,
+            "json_structure": state.json_structure,
+            "code_sample": state.code,
+            "interface_components": await search_docs.ainvoke(
+                [f"The best CODE examples of using {x.title} component related to {x.reason}"
+                 for x in state.components.needed_components]
+            )
+        })
 
     state.code = interface_code
 
@@ -236,7 +305,7 @@ async def revise_code(state: InterfaceGeneratingState):
 
 async def compile_code(state: InterfaceGeneratingState):
     tsx_code = state.code
-    clean_code = re.sub(r"```tsx\s*|\s*```", "", tsx_code)
+    clean_code = re.sub(r"```jsx\s*|\s*```", "", tsx_code)
     state.code = clean_code
     validation_result = validator.validate_tsx(clean_code.strip())
 
@@ -263,7 +332,20 @@ async def generate(query: str) -> str:
     logging.info(f"Starting generation for query: {query}")
 
     try:
-        cur_state = InterfaceGeneratingState(query=query)
+        # Set up configuration with retry mechanism
+        config = {
+            "configurable": {"thread_id": "42"},
+            "recursion_limit": 50,  # Increase the number of retries further
+        }
+        cur_state = None
+        if memory.get_tuple(config):
+            cur_dict: dict = memory.get_tuple(config)[1]["channel_values"]
+            cur_state = InterfaceGeneratingState(**cur_dict)
+            cur_state.new_query = query
+            logging.info(f"\n\nPREVIOUS STATE: {cur_state}")
+        if not cur_state:
+            cur_state = InterfaceGeneratingState(query=query)
+
         builder = StateGraph(InterfaceGeneratingState)
         builder.add_node("funnel", funnel)
         builder.add_node("interface", make_structure)
@@ -280,17 +362,10 @@ async def generate(query: str) -> str:
             compile_interface
         )
         builder.add_edge("debug", "compiler")
-
-        memory = MemorySaver()
         graph = builder.compile(checkpointer=memory)
 
-        # Set up configuration with retry mechanism
-        config = {
-            "configurable": {"thread_id": "42"},
-            "recursion_limit": 50,  # Increase the number of retries further
-        }
-
         try:
+            logging.info(f"\n\nEXECUTING WITH STATE: {cur_state}")
             state = await graph.ainvoke(cur_state, config)
             logging.info("Generation process completed successfully.")
             if isinstance(state, dict):

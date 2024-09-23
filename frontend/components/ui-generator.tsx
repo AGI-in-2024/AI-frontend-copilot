@@ -56,7 +56,7 @@ const UiGenerator = () => {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isAdminMode, setIsAdminMode] = useState(false)
-  const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('iframe')
+  const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('codesandbox')
   const [currentVersion, setCurrentVersion] = useState(1)
   const [isCopied, setIsCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -400,14 +400,14 @@ ReactDOM.render(<App />, document.getElementById("root"));
       </div>
       {showDesign && (
         <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
-          <Tabs defaultValue="code">
+          <Tabs defaultValue="preview">
             <div className="flex justify-between items-center mb-4">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="code" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
-                  Код
-                </TabsTrigger>
                 <TabsTrigger value="preview" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
                   Препросмотр
+                </TabsTrigger>
+                <TabsTrigger value="code" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
+                  Код
                 </TabsTrigger>
               </TabsList>
               <Button 
@@ -420,6 +420,17 @@ ReactDOM.render(<App />, document.getElementById("root"));
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
             </div>
+            <TabsContent value="preview">
+              <div className="w-full h-[calc(100vh-240px)]">
+                <iframe
+                  src={getCodeSandboxUrl()}
+                  style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
+                  title="CodeSandbox Preview"
+                  allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+                  sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                />
+              </div>
+            </TabsContent>
             <TabsContent value="code">
               <div className="mb-4 flex justify-between items-center">
                 <div className="flex space-x-2 overflow-x-auto">
@@ -482,32 +493,6 @@ ReactDOM.render(<App />, document.getElementById("root"));
                   />
                 </div>
               </div>
-            </TabsContent>
-            <TabsContent value="preview">
-              <div className="mb-4">
-                <ToggleGroup type="single" value={previewType} onValueChange={(value) => setPreviewType(value as 'iframe' | 'codesandbox')} className="bg-[#E6F0F9] p-1 rounded-md">
-                  <ToggleGroupItem value="iframe" className="data-[state=on]:bg-[#0053A0] data-[state=on]:text-white data-[state=off]:text-[#0053A0]">Local Preview</ToggleGroupItem>
-                  <ToggleGroupItem value="codesandbox" className="data-[state=on]:bg-[#0053A0] data-[state=on]:text-white data-[state=off]:text-[#0053A0]">CodeSandbox</ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-              {previewType === 'iframe' ? (
-                <iframe
-                  src="http://localhost:5173"
-                  title="Preview"
-                  className="w-full h-[calc(100vh-240px)] border-none"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <div className="w-full h-[calc(100vh-240px)]">
-                  <iframe
-                    src={getCodeSandboxUrl()}
-                    style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
-                    title="CodeSandbox Preview"
-                    allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
-                    sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-                  />
-                </div>
-              )}
             </TabsContent>
           </Tabs>
         </div>

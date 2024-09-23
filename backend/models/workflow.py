@@ -7,7 +7,7 @@ from typing import Dict, Any, Union, List
 
 from langchain.retrievers import MultiQueryRetriever
 from langchain_community.vectorstores import FAISS
-from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.runnables import chain
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.checkpoint.memory import MemorySaver
@@ -41,9 +41,9 @@ try:
     retriever = db.as_retriever(
         search_type="mmr",
         search_kwargs={
-            'k': 4,
-            'lambda_mult': 0.3,
-            'fetch_k': 25}
+            'k': 10,
+            'lambda_mult': 0.2,
+            'fetch_k': 40}
     )
     memory = MemorySaver()
     components_descs = get_comps_descs()
@@ -66,7 +66,7 @@ class FunnelOutput(BaseModel):
 
 
 class FunnelIterOutput(BaseModel):
-    instructions: Union[Dict[str, Any], None] = Field(description="Подробная инструкция по тому что нужно сделать")
+    instructions: List[Dict[str, Any]] = Field(description="Подробная инструкция по тому что нужно сделать")
     components_to_modify: list[Component] = Field(
         description="Список компонентов которые требуют модификации в имеющейся реализации")
 
@@ -86,7 +86,7 @@ class InterfaceJson(BaseModel):
 
 class RefactoredInterface(BaseModel):
     fixed_code: str = Field(description="Исправленная код интерфейса")
-    fixed_structure: list[InterfaceComponent | Any] = Field(
+    fixed_structure: InterfaceJson = Field(
         description="Исправленная JSON структура, после фикса ошибок")
 
 
@@ -108,7 +108,7 @@ async def funnel(state: InterfaceGeneratingState):
         state.errors = "LLM not initialized properly"
         return state
     if state.new_query:
-        iter_funnel_chain = FUNNEL_ITER | llm | JsonOutputParser(pydantic_object=FunnelIterOutput)
+        iter_funnel_chain = FUNNEL_ITER | llm | PydanticOutputParser(pydantic_object=FunnelIterOutput)
         res = iter_funnel_chain.invoke(
             input={
                 "previous_query": state.query,
@@ -120,16 +120,16 @@ async def funnel(state: InterfaceGeneratingState):
 
         # app.logger.info(f"cur state is {state}")
         print(f"\n\nITER_FUNNEL out: {res}")
-        state.instructions = res["instructions"]
-        state.components_to_modify = res["components_to_modify"]
+        state.instructions = res.instructions
+        state.components_to_modify = res.components_to_modify
     else:
-        funnel_chain = FUNNEL | llm | JsonOutputParser(pydantic_object=FunnelOutput)
-        res = FunnelOutput(**funnel_chain.invoke(
+        funnel_chain = FUNNEL | llm | PydanticOutputParser(pydantic_object=FunnelOutput)
+        res = funnel_chain.invoke(
             input={
                 "query": state.query,
                 "components": components_descs
             }
-        ))
+        )
 
         # app.logger.info(f"cur state is {state}")
         print(f"\n\nNeeded comps {res}")
@@ -159,7 +159,7 @@ async def make_structure(state: InterfaceGeneratingState):
                 }
                 | INTERFACE_JSON_ITER
                 | llm
-                | JsonOutputParser(pydantic_object=InterfaceJson)
+                | PydanticOutputParser(pydantic_object=InterfaceJson)
         )
 
         interface_json = iter_interface_json_chain.invoke(
@@ -187,7 +187,7 @@ async def make_structure(state: InterfaceGeneratingState):
                 }
                 | INTERFACE_JSON
                 | llm
-                | JsonOutputParser(pydantic_object=InterfaceJson)
+                | PydanticOutputParser(pydantic_object=InterfaceJson)
         )
         interface_json = interface_json_chain.invoke(
             {
@@ -209,7 +209,7 @@ async def make_structure(state: InterfaceGeneratingState):
 async def write_code(state: InterfaceGeneratingState):
     interface_coder_chain = (
             {
-                "interface_components": lambda x: x["code_sample"],  # Get context and format it
+                "interface_components": lambda x: x["interface_components"],  # Get context and format it
                 "query": lambda x: x["query"],  # Pass the question unchanged
                 "json_structure": lambda x: x["json_structure"],
                 "code_sample": lambda x: x["code_sample"]
@@ -254,11 +254,14 @@ async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
     for err in errors_list:
         cur_line = code_lines[int((err["location"]).split(" ")[4]) - 1]
         if "Type" in err["message"]:
-            queries.append(f"Types and Code samples to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Types and Code samples to debug {code} with error {err["message"]}")
         elif "Property" in err["message"]:
-            queries.append(f"Props to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Props to debug {code} with error {err["message"]}")
         elif "Children" in err["message"]:
-            queries.append(f"Children types to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Children types to debug {code} with error {err["message"]}")
+        elif "Module" in err["message"]:
+            queries.append(f"ArgTypes and Codes for COMPONENT that could replace non-existent member specified in this message: {err["message"]}")
+
 
     res = "No special information needed to fix these errors"
     if queries:
@@ -280,7 +283,7 @@ async def revise_code(state: InterfaceGeneratingState):
             }
             | DEBUGGER
             | llm
-            | JsonOutputParser(pydantic_object=RefactoredInterface)
+            | PydanticOutputParser(pydantic_object=RefactoredInterface)
     )
     docs = await debug_docs(state.code, state.errors)
 
@@ -297,15 +300,15 @@ async def revise_code(state: InterfaceGeneratingState):
 
     print(f"FIxes: {fixes}")
 
-    state.code = fixes["fixed_code"]
-    state.json_structure = fixes["fixed_structure"]
+    state.code = fixes.fixed_code
+    state.json_structure = fixes.fixed_structure
 
     return state
 
 
 async def compile_code(state: InterfaceGeneratingState):
     tsx_code = state.code
-    clean_code = re.sub(r"```jsx\s*|\s*```", "", tsx_code)
+    clean_code = re.sub(r"```(jsx|tsx)\s*|\s*```", "", tsx_code)
     state.code = clean_code
     validation_result = validator.validate_tsx(clean_code.strip())
 

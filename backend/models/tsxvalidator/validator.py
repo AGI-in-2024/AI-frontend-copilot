@@ -142,7 +142,7 @@ class TSXValidator:
     def validate_tsx(self, tsx_code: str) -> Dict[str, Any]:
         logger.info("Starting TSX code validation")
         unique_id = uuid.uuid4().hex
-        temp_file = self.base_dir / "src" / f"temp_{unique_id}.jsx"
+        temp_file = self.base_dir / "src" / f"temp_{unique_id}.tsx"
 
         try:
             with open(temp_file, "w", encoding='utf-8') as f:
@@ -163,7 +163,6 @@ class TSXValidator:
                 "--esModuleInterop",
                 "--allowSyntheticDefaultImports",
                 "--skipLibCheck",
-                "--allowJs",
                 str(abs_temp_file)
             ]
             logger.debug(f"Executing command: {' '.join(cmd)}")
@@ -262,5 +261,4 @@ class TSXValidator:
             issues.append("TypeScript компилятор не найден")
 
         return issues
-
 

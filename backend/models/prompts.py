@@ -278,6 +278,7 @@ DEBUGGER = ChatPromptTemplate.from_messages(
                - If necessary, make adjustments to the JSON structure based on the fixed code, but only after resolving the code issues.
             4. **Correct Formatting**:
                - Ensure the corrected JavaScript code follows best practices and is properly formatted for use in a React project.
+               - Ensure that strings (including those in Cyrillic) are returned in human-readable format, without being converted into Unicode escape sequences.
                - Provide the corrected code and updated JSON structure in the format below.
 
             Return the result as a JSON with the following keys:
@@ -289,5 +290,6 @@ DEBUGGER = ChatPromptTemplate.from_messages(
         ),
     ]
 )
+
 
 

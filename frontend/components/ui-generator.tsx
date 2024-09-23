@@ -5,7 +5,6 @@ import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -103,7 +102,7 @@ const UiGenerator = () => {
     setInput('')
 
     setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция изайна интерфейса...", sender: 'ai' }]);
     
     if (isAdminMode) {
       setTimeout(() => {
@@ -121,6 +120,7 @@ export default DummyComponent;
         `;
         setGeneratedCode(dummyCode);
         setEditableCode(dummyCode);
+        updateSandboxPreview(dummyCode);
         setShowDesign(true);
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
         setIsGeneratingUI(false);
@@ -141,13 +141,22 @@ export default DummyComponent;
           throw new Error(generatedCode);
         }
 
-        setGeneratedCode(generatedCode);
+        // Modify the generated code to use placeholder components
+        const modifiedGeneratedCode = generatedCode.replace(
+          "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
+          "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
+          "const Header = ({ children }) => <header>{children}</header>;\n" +
+          "const Button = ({ children }) => <button>{children}</button>;\n" +
+          "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
+        );
+
+        setGeneratedCode(modifiedGeneratedCode);
         console.log('State updated with generated code');
 
-        setEditableCode(generatedCode);
+        setEditableCode(modifiedGeneratedCode);
         console.log('Editable code updated');
 
-        await updateIndexFile(generatedCode);
+        await updateIndexFile(modifiedGeneratedCode);
 
         setShowDesign(true);
         console.log('Show design set to true');
@@ -166,6 +175,10 @@ export default DummyComponent;
     }
   };
 
+  const updateSandboxPreview = useCallback((code: string) => {
+    setGeneratedCode(code);
+  }, []);
+
   const handleCreateNewDesign = () => {
     setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как  могу помочь вам сгенерировть дизайн интерфейса сегодня?", sender: 'ai' }])
     setGeneratedCode('')
@@ -180,9 +193,10 @@ export default DummyComponent;
   }
 
   const handleCodeChange = useCallback((code: string) => {
-    setEditableCode(code)
+    setEditableCode(code);
     updateIndexFile(code);
-  }, [updateIndexFile])
+    updateSandboxPreview(code);
+  }, [updateIndexFile, updateSandboxPreview]);
 
   const renderComponent = (Component: any): React.ReactNode => {
     if (typeof Component === 'function') {
@@ -209,7 +223,7 @@ export default DummyComponent;
       reader.onload = (e) => {
         const newMessage: Message = {
           id: Date.now().toString(),
-          text: "Изображение загружено",
+          text: "Изображение заружено",
           sender: 'user',
           image: e.target?.result as string
         }
@@ -265,18 +279,30 @@ export default DummyComponent;
   }
 
   const getCodeSandboxFiles = useCallback(() => {
+    // Modify the generated code to use placeholder components
+    const modifiedGeneratedCode = generatedCode.replace(
+      "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
+      "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
+      "const Header = ({ children }) => <header>{children}</header>;\n" +
+      "const Button = ({ children }) => <button>{children}</button>;\n" +
+      "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
+    );
+
     return {
       "package.json": {
         content: JSON.stringify({
           dependencies: {
             "react": "^17.0.2",
             "react-dom": "^17.0.2",
-            "@nlmk/ds-2.0": "latest"
-          }
+          },
+          main: "/src/index.js"
         })
       },
       "/src/App.js": {
-        content: editableCode,
+        content: `
+import React from "react";
+${modifiedGeneratedCode}
+        `.trim()
       },
       "/src/index.js": {
         content: `
@@ -285,14 +311,29 @@ import ReactDOM from "react-dom";
 import App from "./App";
 
 ReactDOM.render(<App />, document.getElementById("root"));
-        `,
+        `.trim()
       },
+      "/public/index.html": {
+        content: `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>React App</title>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
+        `.trim()
+      }
     };
-  }, [editableCode]);
+  }, [generatedCode]);
 
   const getCodeSandboxUrl = useCallback(() => {
     const parameters = getParameters({
-      files: getCodeSandboxFiles() as Record<string, { content: string }>,
+      files: getCodeSandboxFiles() as Record<string, { content: string; isBinary?: boolean }>,
     });
     return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
   }, [getCodeSandboxFiles]);
@@ -400,28 +441,24 @@ ReactDOM.render(<App />, document.getElementById("root"));
       </div>
       {showDesign && (
         <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
-          <Tabs defaultValue="preview">
-            <div className="flex justify-between items-center mb-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="preview" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
-                  Препросмотр
-                </TabsTrigger>
-                <TabsTrigger value="code" className="data-[state=active]:bg-[#2864CE] data-[state=active]:text-white">
-                  Код
-                </TabsTrigger>
-              </TabsList>
-              <Button 
-                variant="secondary"
-                fill="outline"
-                size="m"
-                onClick={toggleFullscreen} 
-                className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            </div>
-            <TabsContent value="preview">
-              <div className="w-full h-[calc(100vh-240px)]">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-[#0053A0]">Preview and Code</h2>
+            <Button 
+              variant="secondary"
+              fill="outline"
+              size="m"
+              onClick={toggleFullscreen} 
+              className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Preview Section */}
+            <div className="bg-white rounded-lg shadow-lg p-4">
+              <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Preview</h3>
+              <div className="w-full h-[600px]">
                 <iframe
                   src={getCodeSandboxUrl()}
                   style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
@@ -430,9 +467,12 @@ ReactDOM.render(<App />, document.getElementById("root"));
                   sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
                 />
               </div>
-            </TabsContent>
-            <TabsContent value="code">
+            </div>
+
+            {/* Code Section */}
+            <div className="bg-white rounded-lg shadow-lg p-4">
               <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-[#0053A0]">Code</h3>
                 <div className="flex space-x-2 overflow-x-auto">
                   {versions.map((version, index) => (
                     <Button
@@ -466,13 +506,13 @@ ReactDOM.render(<App />, document.getElementById("root"));
                     fontFamily: '"JetBrains Mono", monospace',
                     fontSize: 14,
                     lineHeight: 1.6,
-                    height: 'calc(100vh - 350px)',
+                    height: 'calc(100vh - 600px)', // Adjusted height
                     overflow: 'auto',
                     backgroundColor: '#EDEEEF',
                     color: '#000',
                   }}
                   textareaClassName="focus:outline-none"
-                  className="min-h-[400px] focus-within:shadow-outline-blue"
+                  className="min-h-[300px] focus-within:shadow-outline-blue"
                 />
                 <div className="absolute top-4 right-4 flex gap-2">
                   <Button 
@@ -493,12 +533,12 @@ ReactDOM.render(<App />, document.getElementById("root"));
                   />
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-export default UiGenerator  
+export default UiGenerator

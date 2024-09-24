@@ -9,7 +9,8 @@ from backend.models.workflow import generate
 from backend.models.prompts import get_ui_improvement_prompt  # Import the new function
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'http://83.229.82.52:3000, http://localhost:3000').split(',')
+CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
 
 llm = ChatOpenAI(
     model="gpt-4o",
@@ -103,13 +104,13 @@ def update_preview():
 
 def _build_cors_preflight_response():
     response = make_response()
-    response.headers.add("Access-Control-Allow-Origin", "http://83.229.82.52:3000")
+    response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGINS[0])  # Use the first origin
     response.headers.add('Access-Control-Allow-Headers', "Content-Type")
     response.headers.add('Access-Control-Allow-Methods', "POST, OPTIONS")
     return response
 
 def _corsify_actual_response(response, status_code=200):
-    response.headers.add("Access-Control-Allow-Origin", "http://83.229.82.52:3000")
+    response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGINS[0])  # Use the first origin
     return response, status_code
 
 if __name__ == '__main__':

@@ -36,8 +36,8 @@ try:
     retriever = db.as_retriever(
         search_type="mmr",
         search_kwargs={
-            'k': 7,
-            'lambda_mult': 0.25,
+            'k': 5,
+            'lambda_mult': 0.35,
             'fetch_k': 35}
     )
     memory = MemorySaver()
@@ -69,7 +69,7 @@ class InterfaceGeneratingState(BaseModel):
     errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
     new_query: str | None = Field(default=None, description="Новый запрос для изменения текущего интерфейса")
-    instructions: list[Union[Dict[str, Any], None]] | None = Field(
+    instructions: str | None = Field(
         default=None,
         description="Подробная инструкция по тому как улучшить интерфейс"
     )

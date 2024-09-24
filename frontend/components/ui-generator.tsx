@@ -34,15 +34,6 @@ interface Version {
   code: string
 }
 
-const DummyComponent = () => {
-  return (
-    <div>
-      <h1>Dummy Component</h1>
-      <p>This is a dummy component generated in admin mode.</p>
-    </div>
-  );
-}
-
 const UiGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -59,10 +50,18 @@ const UiGenerator = () => {
   const [currentVersion, setCurrentVersion] = useState(1)
   const [isCopied, setIsCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [sandboxUrl, setSandboxUrl] = useState('');
+  const sandboxIframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенерировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенеировать дизайн интерфейса сегодня?", sender: 'ai' }])
   }, [])
+
+  useEffect(() => {
+    // Create initial sandbox URL when component mounts
+    const initialSandboxUrl = getCodeSandboxUrl('// Initial code');
+    setSandboxUrl(initialSandboxUrl);
+  }, []);
 
   useEffect(() => {
     if (generatedCode) {
@@ -102,27 +101,103 @@ const UiGenerator = () => {
     setInput('')
 
     setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция изайна интерфейса...", sender: 'ai' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция изайна интефейса...", sender: 'ai' }]);
     
     if (isAdminMode) {
       setTimeout(() => {
-        const dummyCode = `
-const DummyComponent = () => {
+        const testerModeCode = `
+import React, { useState } from 'react';
+import { Sidebar, Header, Tabs, Grid, Checkbox, Input, Button } from '@nlmk/ds-2.0';
+
+const Interface = () => {
+  const [activeTab, setActiveTab] = useState(0);
+  const [checkboxes, setCheckboxes] = useState({ checkbox1: false, checkbox2: false });
+  const [inputValues, setInputValues] = useState({ input1: '', input2: '' });
+
+  const handleCheckboxChange = (id) => {
+    setCheckboxes(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleInputChange = (id, value) => {
+    setInputValues(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleSubmit = () => {
+    console.log('Submitted:', { checkboxes, inputValues });
+  };
+
   return (
-    <div>
-      <h1>Dummy Component</h1>
-      <p>This is a dummy component generated in admin mode.</p>
+    <div style={{ display: 'flex', height: '100vh' }}>
+      <Sidebar 
+        orientation="vertical" 
+        allowFavorites={false} 
+        isLoggedIn={false} 
+        onOpenUser={() => {}} 
+        currentPath="/" 
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Header title="Заголовок страницы" bg={true} />
+        <Tabs style={{ padding: '0 var(--16-size)' }}>
+          <Tabs.Tab 
+            label="Вкладка 1" 
+            active={activeTab === 0} 
+          />
+          <Tabs.Tab 
+            label="Вкладка 2" 
+            active={activeTab === 1} 
+          />
+        </Tabs>
+        <div style={{ flex: 1, overflow: 'auto', padding: 'var(--24-size)' }}>
+          <Grid gap="var(--32-size)">
+            <Grid.Column style={{ flex: 1 }}>
+              <h3 style={{ marginBottom: 'var(--16-size)' }}>Список чекбоксов</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--12-size)' }}>
+                <Checkbox 
+                  label="Чекбокс 1" 
+                  id="checkbox1" 
+                  checked={checkboxes.checkbox1}
+                  onChange={() => handleCheckboxChange('checkbox1')} 
+                />
+                <Checkbox 
+                  label="Чекбокс 2" 
+                  id="checkbox2" 
+                  checked={checkboxes.checkbox2}
+                  onChange={() => handleCheckboxChange('checkbox2')} 
+                />
+              </div>
+            </Grid.Column>
+            <Grid.Column style={{ flex: 1 }}>
+              <h3 style={{ marginBottom: 'var(--16-size)' }}>Форма</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--16-size)' }}>
+                <Input 
+                  label="Поле 1" 
+                  id="input1" 
+                  value={inputValues.input1}
+                  onChange={(e) => handleInputChange('input1', e.target.value)} 
+                />
+                <Input 
+                  label="Поле 2" 
+                  id="input2" 
+                  value={inputValues.input2}
+                  onChange={(e) => handleInputChange('input2', e.target.value)} 
+                />
+                <Button onClick={handleSubmit} style={{ alignSelf: 'flex-start', marginTop: 'var(--8-size)' }}>Отправить</Button>
+              </div>
+            </Grid.Column>
+          </Grid>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
-export default DummyComponent;
+export default Interface;
         `;
-        setGeneratedCode(dummyCode);
-        setEditableCode(dummyCode);
-        updateSandboxPreview(dummyCode);
+        setGeneratedCode(testerModeCode);
+        setEditableCode(testerModeCode);
+        updateSandboxPreview(testerModeCode);
         setShowDesign(true);
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режим администратора!", sender: 'ai' }]);
         setIsGeneratingUI(false);
       }, 1000);
     } else {
@@ -141,26 +216,25 @@ export default DummyComponent;
           throw new Error(generatedCode);
         }
 
-        // Modify the generated code to use placeholder components
-        const modifiedGeneratedCode = generatedCode.replace(
-          "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
-          "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
-          "const Header = ({ children }) => <header>{children}</header>;\n" +
-          "const Button = ({ children }) => <button>{children}</button>;\n" +
-          "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
-        );
+        const modifiedGeneratedCode = generatedCode
+          .replace(
+            "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
+            "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
+            "const Header = ({ children }) => <header>{children}</header>;\n" +
+            "const Button = ({ children }) => <button>{children}</button>;\n" +
+            "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
+          )
+          .replace(/export\s+default\s+/g, 'export default '); // Ensure export default statement
 
         setGeneratedCode(modifiedGeneratedCode);
-        console.log('State updated with generated code');
-
         setEditableCode(modifiedGeneratedCode);
-        console.log('Editable code updated');
 
         await updateIndexFile(modifiedGeneratedCode);
 
-        setShowDesign(true);
-        console.log('Show design set to true');
+        const sandboxUrl = getCodeSandboxUrl(modifiedGeneratedCode);
+        setSandboxUrl(sandboxUrl);
 
+        setShowDesign(true);
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
       } catch (error: unknown) {
         console.error('Error generating UI:', error);
@@ -177,6 +251,9 @@ export default DummyComponent;
 
   const updateSandboxPreview = useCallback((code: string) => {
     setGeneratedCode(code);
+    if (sandboxIframeRef.current && sandboxIframeRef.current.contentWindow) {
+      sandboxIframeRef.current.contentWindow.postMessage({ type: 'update', code }, '*');
+    }
   }, []);
 
   const handleCreateNewDesign = () => {
@@ -243,7 +320,7 @@ export default DummyComponent;
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Изображение вставлено",
+              text: "Избражение вставлено",
               sender: 'user',
               image: e.target?.result as string
             }
@@ -278,65 +355,94 @@ export default DummyComponent;
     setIsFullscreen(!isFullscreen);
   }
 
-  const getCodeSandboxFiles = useCallback(() => {
-    // Modify the generated code to use placeholder components
-    const modifiedGeneratedCode = generatedCode.replace(
-      "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
-      "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
-      "const Header = ({ children }) => <header>{children}</header>;\n" +
-      "const Button = ({ children }) => <button>{children}</button>;\n" +
-      "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
-    );
-
-    return {
-      "package.json": {
-        content: JSON.stringify({
-          dependencies: {
-            "react": "^17.0.2",
-            "react-dom": "^17.0.2",
-          },
-          main: "/src/index.js"
-        })
-      },
-      "/src/App.js": {
-        content: `
-import React from "react";
-${modifiedGeneratedCode}
-        `.trim()
-      },
-      "/src/index.js": {
-        content: `
-import React from "react";
-import ReactDOM from "react-dom";
+  const getCodeSandboxUrl = useCallback((code: string) => {
+    const parameters = getParameters({
+      files: {
+        'index.js': {
+          content: `
+import React, { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles.css";
 import App from "./App";
 
-ReactDOM.render(<App />, document.getElementById("root"));
-        `.trim()
-      },
-      "/public/index.html": {
-        content: `
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+          `,
+          isBinary: false
+        },
+        'App.js': {
+          content: code,
+          isBinary: false
+        },
+        'styles.css': {
+          content: `
+@import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
+@import url('https://fonts.cdnfonts.com/css/pt-root-ui');
+
+html, body {
+  background-color: var(--steel-10);
+}
+
+#root {
+  -webkit-font-smoothing: auto;
+  -moz-font-smoothing: auto;
+  -moz-osx-font-smoothing: grayscale;
+  font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+  font-smooth: always;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  margin: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+* {
+  font-family: 'PT Root UI', sans-serif !important;
+}
+          `,
+          isBinary: false
+        },
+        'public/index.html': {
+          content: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>React App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
 </head>
 <body>
   <div id="root"></div>
 </body>
 </html>
-        `.trim()
+          `,
+          isBinary: false
+        },
+        'package.json': {
+          content: JSON.stringify({
+            dependencies: {
+              react: "^18.0.0",
+              "react-dom": "^18.0.0",
+              "react-scripts": "^5.0.0",
+              "@nlmk/ds-2.0": "2.5.3"
+            },
+            main: "/index.js",
+            devDependencies: {}
+          }),
+          isBinary: false
+        }
       }
-    };
-  }, [generatedCode]);
-
-  const getCodeSandboxUrl = useCallback(() => {
-    const parameters = getParameters({
-      files: getCodeSandboxFiles() as Record<string, { content: string; isBinary?: boolean }>,
     });
-    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}`;
-  }, [getCodeSandboxFiles]);
+
+    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`;
+  }, []);
 
   return (
     <div className="flex h-screen bg-[#EDEEEF]">
@@ -460,8 +566,16 @@ ReactDOM.render(<App />, document.getElementById("root"));
               <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Preview</h3>
               <div className="w-full h-[600px]">
                 <iframe
-                  src={getCodeSandboxUrl()}
-                  style={{width:'100%', height:'100%', border:0, borderRadius: '4px', overflow:'hidden'}}
+                  ref={sandboxIframeRef}
+                  src={sandboxUrl}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 0,
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    background: 'white',
+                  }}
                   title="CodeSandbox Preview"
                   allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
                   sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"

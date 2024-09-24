@@ -280,4 +280,83 @@ DEBUGGER = ChatPromptTemplate.from_messages(
         ),
     ]
 )
+def get_ui_improvement_prompt(result, question):
+    return f"""
+    Given a code, check if it follows the provided design, use only provided components, don't change any imports.
+    Make sure the UI follows the provided design.
+    Return only code in js format and nothing else. (no ```, no comments, no markdown, no nothing).
+    The code will be written to App.js.
+    The generated code will be pasted in a CodeSandbox as App.js
+    index.js structure:
 
+    ```
+    import React, {{ StrictMode }} from "react";
+    import {{ createRoot }} from "react-dom/client";
+    import "./styles.css";
+    import App from "./App";
+    const root = createRoot(document.getElementById("root"));
+    root.render(
+        <StrictMode>
+            <App />
+        </StrictMode>
+    );
+
+    Code to improve:
+    {result}    
+    Design:
+    {question}
+    """
+
+
+test_prompt = """
+
+package.json:
+{{
+    "dependencies": {{
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0",
+        "react-scripts": "^5.0.0",
+        "@nlmk/ds-2.0": "2.5.3"
+    }},
+    "main": "/index.js",
+    "devDependencies": {{}}
+}}
+
+style.css:
+@import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
+@import url('https://fonts.cdnfonts.com/css/pt-root-ui');
+html, body {{
+    background-color: var(--steel-10);
+}}
+#root {{
+    -webkit-font-smoothing: auto;
+    -moz-font-smoothing: auto;
+    -moz-osx-font-smoothing: grayscale;
+    font-smoothing: auto;
+    text-rendering: optimizeLegibility;
+    font-smooth: always;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    margin: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}}
+* {{
+    font-family: 'PT Root UI', sans-serif !important;
+}}
+
+public/index.html:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+"""

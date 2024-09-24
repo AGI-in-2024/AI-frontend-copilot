@@ -1,12 +1,23 @@
+import React from "react";
+import Sidebar from "./Sidebar";
+import Header from "./Header";
+import ImageGallery from "./ImageGallery";
+import Button from "./Button";
 
-const DummyComponent = () => {
+function App() {
   return (
-    <div>
-      <h1>Dummy Component</h1>
-      <p>This is a dummy component generated in admin mode.</p>
+    <div className="app-container">
+      <Sidebar />
+      <div className="main-content">
+        <Header />
+        <ImageGallery />
+        <div className="button-container">
+          <Button label="Save" />
+          <Button label="Delete" />
+        </div>
+      </div>
     </div>
   );
 }
 
-export default DummyComponent;
-        
+export default App;

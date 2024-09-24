@@ -201,6 +201,33 @@ DEBUGGER = ChatPromptTemplate.from_messages(
     ]
 )
 
+QUERY_GENERATOR = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a highly skilled front-end developer and documentation expert. Your task is to create precise search queries to retrieve relevant documentation and code samples based on the errors in TypeScript code."
+        ),
+        (
+            "human",
+            """
+            Current code that contains errors:
+            {code}
+
+            List of identified errors in the code:
+            {errors_list}
+
+            Your task is to:
+            1. Review the error messages and the specific lines of code where the errors occur.
+            2. Generate **precise search queries** to retrieve relevant documentation and code samples from the NLMK component library or related sources.
+            3. Each query should focus on resolving a specific error.
+            4. Ensure each query is a single, clean string and contains no explanations or additional formatting.
+
+            Return only a STRING of queries separated by commas, each ready to be used for retrieving relevant documents. Example output:
+            "NLMK Box component prop types documentation for display justifyContent, NLMK Box component usage examples with props, ..."
+            """
+        ),
+    ]
+)
 
 
 

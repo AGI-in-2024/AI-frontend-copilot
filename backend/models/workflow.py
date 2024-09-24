@@ -5,7 +5,7 @@ import re
 from typing import Dict, Any, Union, List
 
 from langchain_community.vectorstores import FAISS
-from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
+from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser, CommaSeparatedListOutputParser
 from langchain_core.runnables import chain
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.checkpoint.memory import MemorySaver
@@ -14,7 +14,7 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from backend.models.prompts import code_sample, FUNNEL, CODER, DEBUGGER, FUNNEL_ITER, CODER_ITER
+from backend.models.prompts import code_sample, FUNNEL, CODER, DEBUGGER, FUNNEL_ITER, CODER_ITER, QUERY_GENERATOR
 from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
 
@@ -37,8 +37,8 @@ try:
         search_type="mmr",
         search_kwargs={
             'k': 5,
-            'lambda_mult': 0.35,
-            'fetch_k': 35}
+            'lambda_mult': 0.45,
+            'fetch_k': 40}
     )
     memory = MemorySaver()
     components_descs = get_comps_descs()
@@ -196,6 +196,30 @@ async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
     return res
 
 
+async def debug_docs_v2(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
+    query_prompt = (
+            {
+                "code": lambda x: x["code"],
+                "errors_list": lambda x: x["errors_list"]
+            }
+            | QUERY_GENERATOR
+            | llm
+            | CommaSeparatedListOutputParser()
+    )
+
+    queries = query_prompt.invoke({
+        "code": code,
+        "errors_list": errors_list
+    })
+
+    print(f"QUERIES TO FIX BUGS: {queries}")
+    res = "No special information needed to fix these errors"
+    if queries:
+        res = await search_docs.ainvoke(queries)
+
+    return res
+
+
 async def revise_code(state: InterfaceGeneratingState):
     interface_debugger_chain = (
             {
@@ -207,7 +231,7 @@ async def revise_code(state: InterfaceGeneratingState):
             | llm
             | StrOutputParser()
     )
-    docs = await debug_docs(state.code, state.errors)
+    docs = await debug_docs_v2(state.code, state.errors)
 
     fixed_code = interface_debugger_chain.invoke(
         {

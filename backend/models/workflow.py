@@ -1,11 +1,9 @@
 import asyncio
-import concurrent.futures
 import logging
 import os
 import re
 from typing import Dict, Any, Union, List
 
-from langchain.retrievers import MultiQueryRetriever
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.runnables import chain
@@ -16,14 +14,11 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from backend.models.errors_analizer import extract_component_by_error_line
-from backend.models.prompts import code_sample, FUNNEL, INTERFACE_JSON, CODER, DEBUGGER, init_components_example, \
-    FUNNEL_ITER, INTERFACE_JSON_ITER
+from backend.models.prompts import code_sample, FUNNEL, CODER, DEBUGGER, FUNNEL_ITER, CODER_ITER
 from backend.models.tsxvalidator.validator import TSXValidator
 from backend.parsers.recursive import get_comps_descs, parse_recursivly_store_faiss
 
 load_dotenv()
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FAISS_DB_PATH = os.path.join(BASE_DIR, "../parsers", "data", "faiss_extended")
 openai_api_key = os.environ.get('OPENAI_API_KEY')
@@ -41,18 +36,14 @@ try:
     retriever = db.as_retriever(
         search_type="mmr",
         search_kwargs={
-            'k': 10,
-            'lambda_mult': 0.2,
-            'fetch_k': 40}
+            'k': 7,
+            'lambda_mult': 0.25,
+            'fetch_k': 35}
     )
     memory = MemorySaver()
     components_descs = get_comps_descs()
 except Exception as e:
     logging.error(f"{e}")
-
-
-def format_docs(docs):
-    return "\n\n".join([d.page_content for d in docs])
 
 
 class Component(BaseModel):
@@ -66,41 +57,26 @@ class FunnelOutput(BaseModel):
 
 
 class FunnelIterOutput(BaseModel):
-    instructions: List[Dict[str, Any]] = Field(description="Подробная инструкция по тому что нужно сделать")
+    instructions: str = Field(description="Подробная инструкция по тому что нужно сделать")
     components_to_modify: list[Component] = Field(
         description="Список компонентов которые требуют модификации в имеющейся реализации")
-
-
-class InterfaceComponent(BaseModel):
-    signature: str = Field(description="# то как вызывается компонент или подкомпонент из NLMK")
-    props: Union[Dict[str, Any], None] | Any = Field(description="Словарь пропсов и их значений")
-    used_reason: str = Field(description="Функция компонента в данном контексте")
-    children: Any = Field(
-        description="Список дочерних элементов, который может включать как другие компоненты, так и строки"
-    )
-
-
-class InterfaceJson(BaseModel):
-    initialized_components: list[InterfaceComponent | Any]
-
-
-class RefactoredInterface(BaseModel):
-    fixed_code: str = Field(description="Исправленная код интерфейса")
-    fixed_structure: InterfaceJson = Field(
-        description="Исправленная JSON структура, после фикса ошибок")
 
 
 class InterfaceGeneratingState(BaseModel):
     query: str | None = Field(default=None)
     components: FunnelOutput | None = Field(default=None, description="Релевантные для интерфейса компоненты")
-    json_structure: InterfaceJson | None | Any = Field(default=None, description="Структурра интерфейса")
     code: str | None = Field(default=code_sample, description="Код компонента")
     errors: str | None | list[Any] = Field(default=None, description="Ошибки вознкшие при генерации кода")
 
     new_query: str | None = Field(default=None, description="Новый запрос для изменения текущего интерфейса")
-    instructions: list[Union[Dict[str, Any], None]] | None = Field(default=None, description="Подробная инструкция по тому как улучшить интерфейс")
-    components_to_modify: list[Component] | None = Field(default=None,
-        description="Список компонентов которые требуют модификации в имеющейся реализации")
+    instructions: list[Union[Dict[str, Any], None]] | None = Field(
+        default=None,
+        description="Подробная инструкция по тому как улучшить интерфейс"
+    )
+    components_to_modify: list[Component] | None = Field(
+        default=None,
+        description="Список компонентов которые требуют модификации в имеющейся реализации"
+    )
 
 
 async def funnel(state: InterfaceGeneratingState):
@@ -113,12 +89,11 @@ async def funnel(state: InterfaceGeneratingState):
             input={
                 "previous_query": state.query,
                 "new_query": state.new_query,
-                "existing_interface_json": state.json_structure,
+                "existing_code": state.code,
                 "components": components_descs
             }
         )
 
-        # app.logger.info(f"cur state is {state}")
         print(f"\n\nITER_FUNNEL out: {res}")
         state.instructions = res.instructions
         state.components_to_modify = res.components_to_modify
@@ -146,96 +121,47 @@ async def search_docs(queries: list[str]):
     return docs
 
 
-async def make_structure(state: InterfaceGeneratingState):
-
-    if state.new_query:
-        iter_interface_json_chain = (
-                {
-                    "components_info": lambda x: format_docs(x["components_info"]),
-                    "new_query": lambda x: x["new_query"],  # Pass the question unchanged
-                    "existing_interface_json": lambda x: x["existing_interface_json"],
-                    "modification_instructions": lambda x: x["modification_instructions"],
-                    "init_components_example": lambda x: x["init_components_example"]
-                }
-                | INTERFACE_JSON_ITER
-                | llm
-                | PydanticOutputParser(pydantic_object=InterfaceJson)
-        )
-
-        interface_json = iter_interface_json_chain.invoke(
-            {
-                "new_query": state.new_query,
-                "existing_interface_json": state.json_structure,
-                "modification_instructions": state.instructions,
-                "init_components_example": init_components_example,
-                "components_info": await search_docs.ainvoke(
-                    [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.reason}"
-                     for x in state.components_to_modify]
-                )
-            }
-        )
-        state.json_structure = interface_json
-        print(f"\nInterface json {interface_json}")
-
-    else:
-        interface_json_chain = (
-                {
-                    "components_info": lambda x: format_docs(x["components_info"]),
-                    "query": lambda x: x["query"],  # Pass the question unchanged
-                    "needed_components": lambda x: x["needed_components"],
-                    "init_components_example": lambda x: x["init_components_example"],
-                }
-                | INTERFACE_JSON
-                | llm
-                | PydanticOutputParser(pydantic_object=InterfaceJson)
-        )
-        interface_json = interface_json_chain.invoke(
-            {
-                "query": state.query,
-                "needed_components": state.components.needed_components,
-                "init_components_example": init_components_example,
-                "components_info": await search_docs.ainvoke(
-                    [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
-                     for x in state.components.needed_components]
-                )
-            }
-        )
-        state.json_structure = interface_json
-        print(f"\nInterface json {interface_json}")
-
-    return state
-
-
 async def write_code(state: InterfaceGeneratingState):
     interface_coder_chain = (
             {
                 "interface_components": lambda x: x["interface_components"],  # Get context and format it
                 "query": lambda x: x["query"],  # Pass the question unchanged
-                "json_structure": lambda x: x["json_structure"],
                 "code_sample": lambda x: x["code_sample"]
             }
             | CODER
             | llm
             | StrOutputParser()
     )
+    interface_coder_iter_chain = (
+            {
+                "interface_components": lambda x: x["interface_components"],  # Get context and format it
+                "query": lambda x: x["query"],  # Pass the question unchanged
+                "new_query": lambda x: x["new_query"],  # Pass the question unchanged
+                "instructions": lambda x: x["instructions"],  # Pass the question unchanged
+                "existing_code": lambda x: x["existing_code"]
+            }
+            | CODER_ITER
+            | llm
+            | StrOutputParser()
+    )
 
     if state.new_query:
-        interface_code = interface_coder_chain.invoke({
-            "query": state.new_query + str(state.instructions),
-            "json_structure": state.json_structure,
-            "code_sample": state.code,
+        interface_code = interface_coder_iter_chain.invoke({
+            "query": state.query,
+            "new_query": state.new_query,
+            "existing_code": state.code,
+            "instructions": state.instructions,
             "interface_components": await search_docs.ainvoke(
-                [f"The best CODE examples of using {x.title} component related to {x.reason}"
+                [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
                  for x in state.components_to_modify]
             )
         })
     else:
         interface_code = interface_coder_chain.invoke({
             "query": state.query,
-            "json_structure": state.json_structure,
             "code_sample": state.code,
             "interface_components": await search_docs.ainvoke(
-                [f"The best CODE examples of using {x.title} component related to {x.reason}"
+                [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
                  for x in state.components.needed_components]
             )
         })
@@ -254,14 +180,14 @@ async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
     for err in errors_list:
         cur_line = code_lines[int((err["location"]).split(" ")[4]) - 1]
         if "Type" in err["message"]:
-            queries.append(f"Types and Code samples to debug {code} with error {err["message"]}")
+            queries.append(f"Types and Code samples to debug {cur_line} with error {err["message"]}")
         elif "Property" in err["message"]:
-            queries.append(f"Props to debug {code} with error {err["message"]}")
+            queries.append(f"Props to debug {cur_line} with error {err["message"]}")
         elif "Children" in err["message"]:
-            queries.append(f"Children types to debug {code} with error {err["message"]}")
+            queries.append(f"Children types to debug {cur_line} with error {err["message"]}")
         elif "Module" in err["message"]:
-            queries.append(f"ArgTypes and Codes for COMPONENT that could replace non-existent member specified in this message: {err["message"]}")
-
+            queries.append(
+                f"ArgTypes and Codes for COMPONENT that could replace non-existent member specified in this message: {err["message"]}")
 
     res = "No special information needed to fix these errors"
     if queries:
@@ -273,35 +199,27 @@ async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
 async def revise_code(state: InterfaceGeneratingState):
     interface_debugger_chain = (
             {
-                "useful_info": lambda x: x["useful_info"],
-                # Передаём найденные доки по ошибкам
-                "query": lambda x: x["query"],  # Передаём запрос пользователя
-                "json_structure": lambda x: x["json_structure"],
+                "useful_info": lambda x: x["useful_info"],  # Передаём найденные доки по ошибкам
                 "interface_code": lambda x: x["interface_code"],
-                "errors_list": lambda x: x["errors_list"],
-                "init_components_example": lambda x: x["init_components_example"]
+                "errors_list": lambda x: x["errors_list"]
             }
             | DEBUGGER
             | llm
-            | PydanticOutputParser(pydantic_object=RefactoredInterface)
+            | StrOutputParser()
     )
     docs = await debug_docs(state.code, state.errors)
 
-    fixes = interface_debugger_chain.invoke(
+    fixed_code = interface_debugger_chain.invoke(
         {
-            "query": state.query,
-            "json_structure": state.json_structure,
             "interface_code": state.code,
             "errors_list": state.errors,
-            "useful_info": docs,
-            "init_components_example": init_components_example
+            "useful_info": docs
         }
     )
 
-    print(f"FIxes: {fixes}")
+    print(f"Fixed code: {fixed_code}")
 
-    state.code = fixes.fixed_code
-    state.json_structure = fixes.fixed_structure
+    state.code = fixed_code
 
     return state
 
@@ -316,6 +234,8 @@ async def compile_code(state: InterfaceGeneratingState):
 
     if validation_result["valid"]:
         state.errors = ""
+        if state.new_query:
+            state.query = state.query + state.new_query
     else:
         state.errors = validation_result["errors"]
 
@@ -327,7 +247,6 @@ async def compile_interface(state: InterfaceGeneratingState):
     if not compiling_res:
         return END
     else:
-        # STATES_TMP_DUMP["1"] = state.model_dump()
         return "debug"
 
 
@@ -351,14 +270,12 @@ async def generate(query: str) -> str:
 
         builder = StateGraph(InterfaceGeneratingState)
         builder.add_node("funnel", funnel)
-        builder.add_node("interface", make_structure)
         builder.add_node("coder", write_code)
         builder.add_node("compiler", compile_code)
         builder.add_node("debug", revise_code)
 
         builder.set_entry_point("funnel")
-        builder.add_edge("funnel", "interface")
-        builder.add_edge("interface", "coder")
+        builder.add_edge("funnel", "coder")
         builder.add_edge("coder", "compiler")
         builder.add_conditional_edges(
             'compiler',

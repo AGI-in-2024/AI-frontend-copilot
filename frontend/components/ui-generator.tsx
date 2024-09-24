@@ -34,7 +34,7 @@ interface Version {
   code: string
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://your-server-ip:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://83.229.82.52:5000';
 
 const UiGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([])

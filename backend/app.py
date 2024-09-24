@@ -9,8 +9,7 @@ from backend.models.workflow import generate
 from backend.models.prompts import get_ui_improvement_prompt  # Import the new function
 
 app = Flask(__name__)
-ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', 'http://83.229.82.52:3000, http://localhost:3000').split(',')
-CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
+CORS(app)  # This will allow all origins
 
 llm = ChatOpenAI(
     model="gpt-4o",

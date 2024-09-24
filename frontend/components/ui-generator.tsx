@@ -34,7 +34,7 @@ interface Version {
   code: string
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://83.229.82.52:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const UiGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([])
@@ -138,7 +138,7 @@ const Interface = () => {
         currentPath="/" 
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Header title="Заголовок страницы" bg={true} />
+        <Header title="Заголоок страницы" bg={true} />
         <Tabs style={{ padding: '0 var(--16-size)' }}>
           <Tabs.Tab 
             label="Вкладка 1" 
@@ -218,22 +218,12 @@ export default Interface;
           throw new Error(generatedCode);
         }
 
-        const modifiedGeneratedCode = generatedCode
-          .replace(
-            "import { Header, Button, Grid } from '@nlmk/ds-2.0';",
-            "// Note: Using placeholder components. Replace with actual @nlmk/ds-2.0 components when available.\n" +
-            "const Header = ({ children }) => <header>{children}</header>;\n" +
-            "const Button = ({ children }) => <button>{children}</button>;\n" +
-            "const Grid = ({ children }) => <div style={{ display: 'grid' }}>{children}</div>;"
-          )
-          .replace(/export\s+default\s+/g, 'export default '); // Ensure export default statement
+        setGeneratedCode(generatedCode);
+        setEditableCode(generatedCode);
 
-        setGeneratedCode(modifiedGeneratedCode);
-        setEditableCode(modifiedGeneratedCode);
+        await updateIndexFile(generatedCode);
 
-        await updateIndexFile(modifiedGeneratedCode);
-
-        const sandboxUrl = getCodeSandboxUrl(modifiedGeneratedCode);
+        const sandboxUrl = getCodeSandboxUrl(generatedCode);
         setSandboxUrl(sandboxUrl);
 
         setShowDesign(true);

@@ -33,7 +33,7 @@ async def generate_ui():
 
     try:
         result = await _process_question(question)
-        response = _invoke_llm(result.code, question)  # Pass the code to _invoke_llm
+        response = _invoke_llm(str(result), question)  # Pass the code to _invoke_llm
         return jsonify({"result": response.content})
     except Exception as e:
         return _handle_exception(e)
@@ -46,7 +46,8 @@ async def _process_question(question):
     app.logger.info(f"Processing question: {question}")
     result = await generate(question)
     app.logger.info(f"Generated result: {result[:100]}...")  # Log first 100 chars
-    return jsonify({"result": result})
+    # return jsonify({"result": result})
+    return result
 
 def _invoke_llm(result, question):  # Change to synchronous function
     prompt = get_ui_improvement_prompt(result, question)

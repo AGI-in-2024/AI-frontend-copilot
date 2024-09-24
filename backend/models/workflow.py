@@ -185,11 +185,11 @@ async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
     for err in errors_list:
         cur_line = code_lines[int((err["location"]).split(" ")[4]) - 1]
         if "Type" in err["message"]:
-            queries.append(f"Types and Code samples to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Types and Code samples to debug {cur_line} with error {err['message']}")
         elif "Property" in err["message"]:
-            queries.append(f"Props to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Props to debug {cur_line} with error {err['message']}")
         elif "Children" in err["message"]:
-            queries.append(f"Children types to debug {cur_line} with error {err["message"]}")
+            queries.append(f"Children types to debug {cur_line} with error {err['message']}")
 
     res = "No special information needed to fix these errors"
     if queries:

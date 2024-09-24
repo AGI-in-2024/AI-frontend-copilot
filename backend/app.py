@@ -103,13 +103,13 @@ def update_preview():
 
 def _build_cors_preflight_response():
     response = make_response()
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    response.headers.add("Access-Control-Allow-Origin", "http://83.229.82.52:3000")
     response.headers.add('Access-Control-Allow-Headers', "Content-Type")
     response.headers.add('Access-Control-Allow-Methods', "POST, OPTIONS")
     return response
 
 def _corsify_actual_response(response, status_code=200):
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+    response.headers.add("Access-Control-Allow-Origin", "http://83.229.82.52:3000")
     return response, status_code
 
 if __name__ == '__main__':

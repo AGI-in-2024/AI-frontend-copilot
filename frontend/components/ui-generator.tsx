@@ -34,6 +34,8 @@ interface Version {
   code: string
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://your-server-ip:5000';
+
 const UiGenerator = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -79,7 +81,7 @@ const UiGenerator = () => {
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
-      await axios.post('http://localhost:5000/update-preview', { code }, {
+      await axios.post(`${API_URL}/update-preview`, { code }, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -203,7 +205,7 @@ export default Interface;
     } else {
       try {
         console.log('Sending request to backend...');
-        const response = await axios.post('http://localhost:5000/generate', { question: input }, {
+        const response = await axios.post(`${API_URL}/generate`, { question: input }, {
           headers: {
             'Content-Type': 'application/json',
           },

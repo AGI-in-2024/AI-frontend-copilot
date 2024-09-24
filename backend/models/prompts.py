@@ -73,33 +73,29 @@ CODER = ChatPromptTemplate.from_messages(
         ),
         (
             "human",
-            '''
-            User's query:
+            """
+            It is a user's query:
             {query}
 
-            ADDITIONAL SOURCE FILES with extremely useful info about these Components: Types, Styles, and Code examples:
+            ADDITIONAL SOURCE FILES with extremely useful info about these Components: Types, Styles and Codes examples:
             {interface_components}
 
-            You MUST convert the user's request into working TypeScript (TSX) code using ONLY the components and props described in the provided component definitions. Make sure to:
-            - **Strictly follow the provided component definitions**. DO NOT invent or assume props that are not explicitly described in the provided documentation.
-            - **Include all necessary imports** from the `@nlmk/ds-2.0` library based on the components used or from React. DO NOT IMPORT ANY OTHER FILES!
-            - Ensure props are used strictly according to their type definitions, as outlined in the provided documentation.
-            - Reflect the component hierarchy and prop types exactly as described.
+            You MUST convert the user's request into working TypeScript (TSX) code using the components and props described in the provided component definitions. Make sure to:
+            - **Include all necessary imports** from the `@nlmk/ds-2.0` library based on the components used or from react. DONT IMPORT ANY OTHER FILES!.
+            - Reflect the component hierarchy and prop types as described in the component definitions.
+            - Ensure props are used in accordance with their type definitions.
             - Use **TypeScript annotations** and follow best practices for typing in React components.
-            - Ensure the final code is correctly formatted for a React project and is fully compatible with TypeScript.
+            - Ensure the output is formatted correctly for use in a React project.
 
-            REMINDER:
-            - Use ONLY React and components from '@nlmk/ds-2.0' as specified.
-            - DO NOT use external stylesheets or any unlisted components.
-            - DO NOT add or modify any new props or components beyond those explicitly provided.
+            YOU MUST USE ONLY React and COMPONENTS from '@nlmk/ds-2.0'!
+            DO NOT USE external stylesheets or any unlisted components.
 
             The final code should look like this:
             {code_sample}
-            '''
+            """
         ),
     ]
 )
-
 
 CODER_ITER = ChatPromptTemplate.from_messages(
     [
@@ -129,7 +125,6 @@ CODER_ITER = ChatPromptTemplate.from_messages(
             4. Ensure **TypeScript annotations** are correct and use best practices for typing in React components.
             5. Follow the new user query carefully and implement all changes accordingly.
             6. Ensure the **output code is formatted** and ready for a React project without any TypeScript or prop errors.
-            7. Dont add any comments in response!
             """
         ),
     ]
@@ -165,7 +160,7 @@ DEBUGGER = ChatPromptTemplate.from_messages(
         ),
         (
             "human",
-            '''
+            """
             Here is the current interface code that requires corrections:
             {interface_code}
 
@@ -177,26 +172,29 @@ DEBUGGER = ChatPromptTemplate.from_messages(
 
             Your task is to:
             1. **Fix errors in TypeScript (TSX)**:
-               - Target the problematic code sections based on the error messages.
-               - Ensure that any props or components used are STRICTLY from the provided documentation. DO NOT invent new props or assume functionality that isn't clearly defined in the provided documents.
+               - Use the error messages to directly target the problematic code sections.
+               - Prioritize fixing errors related to properties, types, and component structure.
+               - Ensure that props are used according to their type definitions, as specified in the provided component documentation.
 
             2. **Ensure all necessary imports are present**:
-               - Add missing imports for components and types from the `@nlmk/ds-2.0` library ONLY.
-               - Ensure NO unnecessary imports or external files are present in the final code.
+               - Add any missing imports for components and types from the `@nlmk/ds-2.0` library.
+               - Ensure that NO unnecessary imports are present in the final code.
+               - THere MUSNT be any imported standalone files!
 
             3. **Use ONLY the provided components**:
-               - DO NOT modify or add any new components or props that are not clearly described in the provided documentation.
+               - The code must use components and props strictly from the `@nlmk/ds-2.0` library as described in the component definitions.
+               - Do not modify or import any components outside of this library.
 
             4. **Ensure compatibility with TypeScript**:
-               - Correct any TypeScript errors related to type mismatches, incorrect usage of props, or missing imports.
-               - Ensure the corrected code adheres to TypeScript standards and is fully type-safe.
+               - The corrected code must adhere to TypeScript standards, including proper type annotations for props and functional components.
+               - Resolve any TypeScript errors related to type mismatches, incorrect usage of props, or missing imports.
 
             5. **Correct Formatting and Human-Readable Strings**:
-               - Ensure the corrected TypeScript code is well-formatted.
-               - Any strings, including those in Cyrillic, should remain human-readable.
+               - Ensure that the corrected TypeScript code is formatted according to best practices.
+               - Any strings, including those in Cyrillic, should be returned in a human-readable format (not in Unicode escape sequences).
 
             Return ONLY the corrected TypeScript (TSX) code as a string, with the necessary imports added. Do not include any other information or JSON structures.
-            '''
+            """
         ),
     ]
 )
@@ -227,11 +225,7 @@ def get_ui_improvement_prompt(result, question):
     {question}
     """
 
-
-<<<<<<< HEAD
 test_prompt = """
-
-<<<<<<< HEAD
 package.json:
 {{
     "dependencies": {{
@@ -282,5 +276,3 @@ public/index.html:
 </body>
 </html>
 """
-
-

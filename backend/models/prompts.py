@@ -305,6 +305,8 @@ def get_ui_improvement_prompt(result, question):
     {result}    
     Design:
     {question}
+
+    all text in the code must be in russian.
     """
 
 def get_ui_description_prompt(question):
@@ -331,12 +333,15 @@ Design Description:
 Modification Request:
 {modification}
 
+
+
 Please make the following improvements to the code:
 1. Implement the changes described in the modification request.
 2. Ensure the code adheres to the design description.
 3. Use only components from the @nlmk/ds-2.0 library.
 4. Maintain proper TypeScript typing.
 5. Keep the existing imports and overall structure intact.
+6. All text in the code must be in russian.
 
 return only code and nothing else, no markdown, no ```, no comments, no nothing
 """

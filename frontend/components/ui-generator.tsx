@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, MessageSquare, Wand2, Code } from 'lucide-react'
+import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, MessageSquare, Wand2, Code, Clock, RefreshCw } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -61,7 +61,11 @@ const UiGenerator = () => {
   const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
 
   useEffect(() => {
-    setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенеировать дизайн интерфейса сегодня?", sender: 'ai' }])
+    setMessages([{ 
+      id: '1', 
+      text: "Добро пожаловать в ИИ Генератор Интерфейса! Здесь вы можете создавать дизайн интерфейса с помощью искусственного интеллекта. Просто опишите желаемый интерфейс, и я помогу вам его сгенерировать. Используйте кнопки внизу для отправки сообщения, генерации описания или быстрого улучшения кода.", 
+      sender: 'ai' 
+    }])
   }, [])
 
   useEffect(() => {
@@ -324,7 +328,7 @@ html, body {
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Избржение вставлено",
+              text: "Избрже��ие вставлено",
               sender: 'user',
               image: e.target?.result as string
             }
@@ -512,17 +516,18 @@ html, body {
 
   const handleQuickImprove = async () => {
     if (!isCodeGenerated) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Please generate code first before improving.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, сначала сгенерируйте код.", sender: 'ai' }]);
       return;
     }
 
     let improvementInput = input.trim();
     if (!improvementInput) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Please provide instructions for improvement.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, предоставьте инструкции для улучшения.", sender: 'ai' }]);
       return;
     }
 
     setIsImproving(true);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Улучшаю код...", sender: 'ai' }]);
     try {
       const response = await axios.post(`${API_URL}/quick-improve`, {
         code: editableCode,
@@ -536,10 +541,10 @@ html, body {
       const improvedCode = response.data.result;
       setEditableCode(improvedCode);
       updateSandboxPreview(improvedCode);
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Code has been improved!", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Код успешно улучшен!", sender: 'ai' }]);
     } catch (error) {
-      console.error('Error improving code:', error);
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "An error occurred while improving the code.", sender: 'ai' }]);
+      console.error('Ошибка при улучшении кода:', error);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Произошла ошибка при улучшении кода.", sender: 'ai' }]);
     } finally {
       setIsImproving(false);
     }
@@ -623,23 +628,21 @@ html, body {
               size="m"
               onClick={handleCreateNewDesign}
               className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
-            >
-              Новый чат
-            </Button>
+              iconButton={<MessageSquare className="h-4 w-4" />}
+            />
             <Button 
               variant="secondary"
               size="m"
               onClick={handleOpenDesignHistory}
-            >
-              История чата
-            </Button>
+              iconButton={<Clock className="h-4 w-4" />}
+            />
           </div>
         </div>
         <Card className="flex-grow mb-0 shadow-lg border-[#2864CE] bg-white rounded-b-none">
           <ScrollArea className="h-[calc(100vh-280px)]">
             <CardContent>
-              {messages.map((message) => (
-                <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
+              {messages.map((message, index) => (
+                <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'} ${index === 0 ? 'mt-4' : ''}`}>
                   <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#2864CE] text-white' : 'bg-[#EDEEEF] text-black'}`}>
                     {message.image ? (
                       <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
@@ -647,18 +650,26 @@ html, body {
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
                   </div>
-                  {message.id === descriptionMessageId && (
+                  <div className="mt-2">
                     <Button
                       variant="secondary"
-                      fill="solid"
+                      fill="outline"
                       size="s"
-                      onClick={() => handleGenerateCodeFromDescription(message.text)}
-                      className="mt-2 bg-[#E6F0F9] text-[#2864CE] hover:bg-[#D1E4F5]"
-                    >
-                      <Code className="h-4 w-4 mr-2" />
-                      Generate Code
-                    </Button>
-                  )}
+                      onClick={() => navigator.clipboard.writeText(message.text)}
+                      className="mr-2 border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+                      iconButton={<Copy className="h-4 w-4" />}
+                    />
+                    {message.id === descriptionMessageId && (
+                      <Button
+                        variant="secondary"
+                        fill="solid"
+                        size="s"
+                        onClick={() => handleGenerateCodeFromDescription(message.text)}
+                        className="bg-[#E6F0F9] text-[#2864CE] hover:bg-[#D1E4F5]"
+                        iconButton={<Code className="h-4 w-4" />}
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -714,23 +725,22 @@ html, body {
       {showDesign && (
         <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-[#0053A0]">Preview and Code</h2>
+            <h2 className="text-xl font-bold text-[#0053A0]">Предпросмотр и код</h2>
             <Button 
               variant="secondary"
               fill="outline"
               size="m"
               onClick={toggleFullscreen} 
               className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
-            >
-              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
+              iconButton={isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            />
           </div>
 
           <div className="space-y-4">
             {/* Preview Section */}
             <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-              <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Preview</h3>
-              <div className="w-full h-[calc(100vh-300px)]"> {/* Increased height and full width */}
+              <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Предпросмотр</h3>
+              <div className="w-full h-[calc(100vh-300px)]">
                 <Sandpack
                   template="react"
                   files={{
@@ -788,7 +798,7 @@ html, body {
             {/* Description Section */}
             <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold text-[#0053A0]">Description</h3>
+                <h3 className="text-lg font-semibold text-[#0053A0]">Описание</h3>
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
@@ -813,9 +823,8 @@ html, body {
                     onClick={handleRegenerateCode}
                     disabled={isRegeneratingCode}
                     className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
-                  >
-                    Regenerate
-                  </Button>
+                    iconButton={<RefreshCw className="h-4 w-4" />}
+                  />
                 </div>
               </div>
               {isEditingDescription ? (
@@ -825,7 +834,7 @@ html, body {
                   className="w-full p-2 border border-[#2864CE] rounded"
                 />
               ) : (
-                <p className="text-sm whitespace-pre-wrap">{codeDescription}</p>
+                <p className="text-sm whitespace-pre-wrap bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF]">{codeDescription}</p>
               )}
               <Button
                 variant="secondary"
@@ -834,14 +843,14 @@ html, body {
                 onClick={() => setIsEditingDescription(!isEditingDescription)}
                 className="mt-2 border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
               >
-                {isEditingDescription ? 'Save' : 'Edit'}
+                {isEditingDescription ? 'Сохранить' : 'Редактировать'}
               </Button>
             </div>
 
             {/* Code Section */}
             <div className="bg-white rounded-lg shadow-lg p-4">
               <div className="mb-4 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-[#0053A0]">Code</h3>
+                <h3 className="text-lg font-semibold text-[#0053A0]">Код</h3>
                 <div className="flex space-x-2 overflow-x-auto">
                   {versions.map((version, index) => (
                     <Button
@@ -862,7 +871,7 @@ html, body {
                   ))}
                 </div>
                 <div className="text-sm font-medium text-[#0053A0]">
-                  Current: V{currentVersion}
+                  Текущая: V{currentVersion}
                 </div>
               </div>
               <div className="relative border-2 border-[#2864CE] rounded-lg overflow-hidden shadow-lg bg-white">
@@ -875,9 +884,9 @@ html, body {
                     fontFamily: '"JetBrains Mono", monospace',
                     fontSize: 14,
                     lineHeight: 1.6,
-                    height: 'calc(100vh - 600px)', // Adjusted height
+                    height: 'calc(100vh - 600px)',
                     overflow: 'auto',
-                    backgroundColor: '#EDEEEF',
+                    backgroundColor: '#F8F9FA',
                     color: '#000',
                   }}
                   textareaClassName="focus:outline-none"

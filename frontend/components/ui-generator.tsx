@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback, createElement } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -14,11 +14,8 @@ import 'prismjs/components/prism-tsx'
 import 'prismjs/themes/prism-tomorrow.css'
 import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
-import * as NLMKDS from '@nlmk/ds-2.0'
-import { PageEditor } from "./PageEditor";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Sandpack } from "@codesandbox/sandpack-react";
 import { getParameters } from 'codesandbox/lib/api/define';
 
@@ -158,7 +155,7 @@ test
     }
   };
 
-  const createSandbox = (code) => {
+  const createSandbox = (code: string) => {
     const parameters = getParameters({
       files: {
         'index.js': {
@@ -175,9 +172,11 @@ root.render(
   </StrictMode>
 );
           `,
+          isBinary: false
         },
         'App.js': {
           content: code,
+          isBinary: false
         },
         'styles.css': {
           content: `
@@ -208,6 +207,7 @@ html, body {
   font-family: 'PT Root UI', sans-serif !important;
 }
           `,
+          isBinary: false
         },
         'public/index.html': {
           content: `
@@ -223,6 +223,7 @@ html, body {
 </body>
 </html>
           `,
+          isBinary: false
         },
         'package.json': {
           content: JSON.stringify({
@@ -235,6 +236,7 @@ html, body {
             main: "/index.js",
             devDependencies: {}
           }),
+          isBinary: false
         }
       }
     });
@@ -243,7 +245,7 @@ html, body {
     setSandboxUrl(sandboxUrl);
   };
 
-  const updateSandboxPreview = useCallback((code) => {
+  const updateSandboxPreview = useCallback((code: string) => {
     if (sandpackClient) {
       sandpackClient.updateFile('/App.js', code);
     }
@@ -313,7 +315,7 @@ html, body {
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Избражение вставлено",
+              text: "Избр��жение вставлено",
               sender: 'user',
               image: e.target?.result as string
             }

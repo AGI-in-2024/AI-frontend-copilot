@@ -338,7 +338,7 @@ Please make the following improvements to the code:
 4. Maintain proper TypeScript typing.
 5. Keep the existing imports and overall structure intact.
 
-Return only the modified React TypeScript code, without any additional formatting or comments. The code will be used directly in a CodeSandbox environment.
+return only code and nothing else, no markdown, no ```, no comments, no nothing
 """
 
 
@@ -394,8 +394,6 @@ component_description = """
         "Typography": "{`Компонент для стандартизации текста и относящимся к нему свойствам стилизации.`}"
     }
 }
-
-return only code and nothing else, no markdown, no ```, no comments, no nothing
 """
 
 

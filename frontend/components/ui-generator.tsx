@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings } from 'lucide-react'
+import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, MessageSquare, Wand2, Code } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -52,6 +52,13 @@ const UiGenerator = () => {
   const [sandboxUrl, setSandboxUrl] = useState('');
   const sandboxIframeRef = useRef<HTMLIFrameElement>(null);
   const [sandpackClient, setSandpackClient] = useState(null);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isImproving, setIsImproving] = useState(false);
+  const [codeDescription, setCodeDescription] = useState('')
+  const [isCodeGenerated, setIsCodeGenerated] = useState(false)
+  const [descriptionMessageId, setDescriptionMessageId] = useState<string | null>(null)
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
 
   useEffect(() => {
     setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенеировать дизайн интерфейса сегодня?", sender: 'ai' }])
@@ -92,7 +99,7 @@ const UiGenerator = () => {
 
   const handleSendAndGenerate = async () => {
     if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос ил описание для интерфейса.", sender: 'ai' }]);
       return;
     }
 
@@ -101,7 +108,7 @@ const UiGenerator = () => {
     setInput('')
 
     setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция изайна интефейса...", sender: 'ai' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция дизайна интефейса...", sender: 'ai' }]);
     
     if (isAdminMode) {
       setTimeout(() => {
@@ -134,6 +141,8 @@ test
 
         setGeneratedCode(generatedCode);
         setEditableCode(generatedCode);
+        setCodeDescription(input); // Save the description
+        setIsCodeGenerated(true);
 
         await updateIndexFile(generatedCode);
 
@@ -441,6 +450,143 @@ html, body {
     return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`;
   }, []);
 
+  const handleGenerateDescription = async () => {
+    if (!input.trim()) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите описание для интерфейса.", sender: 'ai' }]);
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация описания интерфейса...", sender: 'ai' }]);
+
+    try {
+      const response = await axios.post(`${API_URL}/generate-description`, { question: input }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const generatedDescription = response.data.result;
+
+      const newMessageId = Date.now().toString();
+      setMessages(prev => [...prev, { id: newMessageId, text: generatedDescription, sender: 'ai' }]);
+      setDescriptionMessageId(newMessageId);
+    } catch (error) {
+      console.error('Error generating description:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации описания: ${errorMessage}`, sender: 'ai' }]);
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
+
+  const handleGenerateCodeFromDescription = (description: string) => {
+    setIsGeneratingUI(true);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
+    
+    axios.post(`${API_URL}/generate`, { question: description }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    .then(response => {
+      const generatedCode = response.data.result;
+      setGeneratedCode(generatedCode);
+      setEditableCode(generatedCode);
+      setCodeDescription(description);
+      setIsCodeGenerated(true);
+      updateIndexFile(generatedCode);
+      const sandboxUrl = getCodeSandboxUrl(generatedCode);
+      setSandboxUrl(sandboxUrl);
+      setShowDesign(true);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
+    })
+    .catch(error => {
+      console.error('Error generating UI:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
+    })
+    .finally(() => {
+      setIsGeneratingUI(false);
+    });
+  };
+
+  const handleQuickImprove = async () => {
+    if (!isCodeGenerated) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Please generate code first before improving.", sender: 'ai' }]);
+      return;
+    }
+
+    let improvementInput = input.trim();
+    if (!improvementInput) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Please provide instructions for improvement.", sender: 'ai' }]);
+      return;
+    }
+
+    setIsImproving(true);
+    try {
+      const response = await axios.post(`${API_URL}/quick-improve`, {
+        code: editableCode,
+        design: codeDescription,
+        modification: improvementInput
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const improvedCode = response.data.result;
+      setEditableCode(improvedCode);
+      updateSandboxPreview(improvedCode);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Code has been improved!", sender: 'ai' }]);
+    } catch (error) {
+      console.error('Error improving code:', error);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "An error occurred while improving the code.", sender: 'ai' }]);
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const handleCopyDescription = () => {
+    navigator.clipboard.writeText(codeDescription).then(() => {
+      // You can add a temporary state to show a "Copied!" message if you want
+    }, (err) => {
+      console.error('Failed to copy description: ', err);
+    });
+  };
+
+  const handleDownloadDescription = () => {
+    const element = document.createElement("a");
+    const file = new Blob([codeDescription], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "code-description.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const handleRegenerateCode = async () => {
+    setIsRegeneratingCode(true);
+    try {
+      const response = await axios.post(`${API_URL}/quick-improve`, {
+        code: editableCode,
+        design: codeDescription,
+        modification: "Regenerate based on the current description"
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const regeneratedCode = response.data.result;
+      setEditableCode(regeneratedCode);
+      updateSandboxPreview(regeneratedCode);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Code has been regenerated based on the description!", sender: 'ai' }]);
+    } catch (error) {
+      console.error('Error regenerating code:', error);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "An error occurred while regenerating the code.", sender: 'ai' }]);
+    } finally {
+      setIsRegeneratingCode(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#EDEEEF]">
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
@@ -501,6 +647,18 @@ html, body {
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     )}
                   </div>
+                  {message.id === descriptionMessageId && (
+                    <Button
+                      variant="secondary"
+                      fill="solid"
+                      size="s"
+                      onClick={() => handleGenerateCodeFromDescription(message.text)}
+                      className="mt-2 bg-[#E6F0F9] text-[#2864CE] hover:bg-[#D1E4F5]"
+                    >
+                      <Code className="h-4 w-4 mr-2" />
+                      Generate Code
+                    </Button>
+                  )}
                 </div>
               ))}
             </CardContent>
@@ -520,8 +678,19 @@ html, body {
               variant="secondary"
               fill="solid"
               size="m"
-              onClick={handleAddImage}
-              iconButton={<ImageIcon className="h-4 w-4" />}
+              onClick={handleGenerateDescription}
+              disabled={isGeneratingDescription}
+              iconButton={<MessageSquare className="h-4 w-4" />}
+              className="bg-[#E6F0F9] text-[#2864CE] hover:bg-[#D1E4F5]"
+            />
+            <Button 
+              variant="secondary"
+              fill="solid"
+              size="m"
+              onClick={handleQuickImprove}
+              disabled={!isCodeGenerated || isImproving}
+              iconButton={<Wand2 className="h-4 w-4" />}
+              className="bg-[#E6F0F9] text-[#2864CE] hover:bg-[#D1E4F5]"
             />
             <Button 
               variant="primary"
@@ -559,7 +728,7 @@ html, body {
 
           <div className="space-y-4">
             {/* Preview Section */}
-            <div className="bg-white rounded-lg shadow-lg p-4">
+            <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
               <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Preview</h3>
               <div className="w-full h-[calc(100vh-300px)]"> {/* Increased height and full width */}
                 <Sandpack
@@ -614,6 +783,59 @@ html, body {
                   onSandpackClientReady={(client) => setSandpackClient(client)}
                 />
               </div>
+            </div>
+
+            {/* Description Section */}
+            <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-semibold text-[#0053A0]">Description</h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    fill="outline"
+                    size="s"
+                    onClick={handleCopyDescription}
+                    className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+                    iconButton={<Copy className="h-4 w-4" />}
+                  />
+                  <Button
+                    variant="secondary"
+                    fill="outline"
+                    size="s"
+                    onClick={handleDownloadDescription}
+                    className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+                    iconButton={<Download className="h-4 w-4" />}
+                  />
+                  <Button
+                    variant="primary"
+                    fill="solid"
+                    size="s"
+                    onClick={handleRegenerateCode}
+                    disabled={isRegeneratingCode}
+                    className="bg-[#2864CE] text-white hover:bg-[#1952B6]"
+                  >
+                    Regenerate
+                  </Button>
+                </div>
+              </div>
+              {isEditingDescription ? (
+                <Textarea
+                  value={codeDescription}
+                  onChange={(e) => setCodeDescription(e.target.value)}
+                  className="w-full p-2 border border-[#2864CE] rounded"
+                />
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{codeDescription}</p>
+              )}
+              <Button
+                variant="secondary"
+                fill="outline"
+                size="s"
+                onClick={() => setIsEditingDescription(!isEditingDescription)}
+                className="mt-2 border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+              >
+                {isEditingDescription ? 'Save' : 'Edit'}
+              </Button>
             </div>
 
             {/* Code Section */}

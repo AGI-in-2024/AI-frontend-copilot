@@ -7,12 +7,23 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from backend.models.workflow import generate
 from backend.models.prompts import get_ui_improvement_prompt  # Import the new function
+from backend.models.prompts import get_ui_description_prompt
+from backend.models.prompts import get_quick_improve_prompt
 
 app = Flask(__name__)
 CORS(app)  # This will allow all origins
 
-llm = ChatOpenAI(
+smart_llm = ChatOpenAI(
     model="gpt-4o",
+    temperature=0,
+    max_tokens=4000,
+    timeout=None,
+    max_retries=2,
+    api_key=os.environ.get('OPENAI_API_KEY')
+)
+
+fast_llm = ChatOpenAI(
+    model="gpt-4o-mini",
     temperature=0,
     max_tokens=4000,
     timeout=None,
@@ -51,7 +62,7 @@ async def _process_question(question):
 
 def _invoke_llm(result, question):  # Change to synchronous function
     prompt = get_ui_improvement_prompt(result, question)
-    return llm.invoke([
+    return smart_llm.invoke([
         SystemMessage(content="You are a senior React developer."),
         HumanMessage(content=prompt)
     ])
@@ -111,6 +122,56 @@ def _build_cors_preflight_response():
 def _corsify_actual_response(response, status_code=200):
     response.headers.add("Access-Control-Allow-Origin", ALLOWED_ORIGINS[0])  # Use the first origin
     return response, status_code
+
+@app.route('/generate-description', methods=['POST'])
+async def generate_description():
+    app.logger.info("Received request to /generate-description")
+    data = request.json
+    app.logger.info(f"Received data: {data}")
+
+    if not data or 'question' not in data:
+        return _handle_invalid_request()
+
+    question = data['question']
+
+    try:
+        response = _invoke_llm_for_description(question)
+        return jsonify({"result": response.content})
+    except Exception as e:
+        return _handle_exception(e)
+
+def _invoke_llm_for_description(question):
+    prompt = get_ui_description_prompt(question)
+    return fast_llm.invoke([
+        SystemMessage(content="You are a UI/UX expert specializing in creating detailed interface descriptions. Your description will be used to generate react code with nlmk components."),
+        HumanMessage(content=prompt)
+    ])
+
+@app.route('/quick-improve', methods=['POST'])
+async def quick_improve():
+    app.logger.info("Received request to /quick-improve")
+    data = request.json
+    app.logger.info(f"Received data: {data}")
+
+    if not data or 'code' not in data or 'design' not in data or 'modification' not in data:
+        return _handle_invalid_request()
+
+    code = data['code']
+    design = data['design']
+    modification = data['modification']
+
+    try:
+        response = _invoke_llm_for_quick_improve(code, design, modification)
+        return jsonify({"result": response.content})
+    except Exception as e:
+        return _handle_exception(e)
+
+def _invoke_llm_for_quick_improve(code, design, modification):
+    prompt = get_quick_improve_prompt(code, design, modification)
+    return smart_llm.invoke([
+        SystemMessage(content="You are a senior React developer specializing in improving and optimizing React code."),
+        HumanMessage(content=prompt)
+    ])
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

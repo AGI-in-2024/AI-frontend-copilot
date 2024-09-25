@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, createElement } from '
 import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, Eye, EyeOff } from 'lucide-react'
+import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -55,7 +55,6 @@ const UiGenerator = () => {
   const [sandboxUrl, setSandboxUrl] = useState('');
   const sandboxIframeRef = useRef<HTMLIFrameElement>(null);
   const [sandpackClient, setSandpackClient] = useState(null);
-  const [showCodeEditor, setShowCodeEditor] = useState(false);
 
   useEffect(() => {
     setMessages([{ id: '1', text: "Здравствуйте! Как я могу помочь вам сгенеировать дизайн интерфейса сегодня?", sender: 'ai' }])
@@ -176,11 +175,9 @@ root.render(
   </StrictMode>
 );
           `,
-          isBinary: false
         },
         'App.js': {
           content: code,
-          isBinary: false
         },
         'styles.css': {
           content: `
@@ -211,7 +208,6 @@ html, body {
   font-family: 'PT Root UI', sans-serif !important;
 }
           `,
-          isBinary: false
         },
         'public/index.html': {
           content: `
@@ -227,7 +223,6 @@ html, body {
 </body>
 </html>
           `,
-          isBinary: false
         },
         'package.json': {
           content: JSON.stringify({
@@ -240,7 +235,6 @@ html, body {
             main: "/index.js",
             devDependencies: {}
           }),
-          isBinary: false
         }
       }
     });
@@ -265,7 +259,7 @@ html, body {
   }
 
   const handleOpenDesignHistory = () => {
-    alert('Функция итории дизайнов не реализована в эой демо-версии.')
+    alert('Функция итории дизайнов не реализована в этой демо-версии.')
   }
 
   const handleCodeChange = useCallback((code: string) => {
@@ -547,34 +541,23 @@ html, body {
       {showDesign && (
         <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-[#0053A0]">Preview</h2>
-            <div className="flex space-x-2">
-              <Button 
-                variant="secondary"
-                fill="outline"
-                size="m"
-                onClick={() => setShowCodeEditor(!showCodeEditor)}
-                className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
-              >
-                {showCodeEditor ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                {showCodeEditor ? 'Hide Code' : 'Show Code'}
-              </Button>
-              <Button 
-                variant="secondary"
-                fill="outline"
-                size="m"
-                onClick={toggleFullscreen} 
-                className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            </div>
+            <h2 className="text-xl font-bold text-[#0053A0]">Preview and Code</h2>
+            <Button 
+              variant="secondary"
+              fill="outline"
+              size="m"
+              onClick={toggleFullscreen} 
+              className="border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
           </div>
 
           <div className="space-y-4">
             {/* Preview Section */}
             <div className="bg-white rounded-lg shadow-lg p-4">
-              <div className="w-full h-[calc(100vh-200px)]">
+              <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Preview</h3>
+              <div className="w-full h-[calc(100vh-300px)]"> {/* Increased height and full width */}
                 <Sandpack
                   template="react"
                   files={{
@@ -615,70 +598,85 @@ html, body {
                   options={{
                     showNavigator: false,
                     showTabs: false,
-                    editorHeight: 0,
-                    editorWidthPercentage: 0,
+                    editorHeight: 600, // Increased editor height
+                    editorWidthPercentage: 60, // Increased editor width percentage
                   }}
                   customSetup={{
                     dependencies: {
                       "@nlmk/ds-2.0": "2.5.3"
                     }
                   }}
-                  theme="light"
+                  clientId={sandpackClient}
+                  onSandpackClientReady={(client) => setSandpackClient(client)}
                 />
               </div>
             </div>
 
-            {/* Version Switcher */}
-            <div className="bg-white rounded-lg shadow-lg p-4">
-              <div className="flex space-x-2 overflow-x-auto">
-                {versions.map((version, index) => (
-                  <Button
-                    key={version.id}
-                    variant={selectedVersion === version.id ? "primary" : "secondary"}
-                    fill="solid"
-                    size="s"
-                    onClick={() => {
-                      setSelectedVersion(version.id);
-                      setEditableCode(version.code);
-                      setCurrentVersion(index + 1);
-                      updateIndexFile(version.code);
-                    }}
-                    className="flex-shrink-0"
-                  >
-                    V{index + 1}
-                  </Button>
-                ))}
-              </div>
-              <div className="text-sm font-medium text-[#0053A0] mt-2">
-                Current: V{currentVersion}
-              </div>
-            </div>
-
             {/* Code Section */}
-            {showCodeEditor && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <div className="relative border-2 border-[#2864CE] rounded-lg overflow-hidden shadow-lg bg-white">
-                  <Editor
-                    value={editableCode}
-                    onValueChange={handleCodeChange}
-                    highlight={(code) => highlight(code, languages.tsx, 'tsx')}
-                    padding={20}
-                    style={{
-                      fontFamily: '"JetBrains Mono", monospace',
-                      fontSize: 14,
-                      lineHeight: 1.6,
-                      height: 'calc(100vh - 600px)',
-                      overflow: 'auto',
-                      backgroundColor: '#EDEEEF',
-                      color: '#000',
-                    }}
-                    textareaClassName="focus:outline-none"
-                    className="min-h-[300px] focus-within:shadow-outline-blue"
-                  />
-                  {/* ... download and copy buttons ... */}
+            <div className="bg-white rounded-lg shadow-lg p-4">
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-[#0053A0]">Code</h3>
+                <div className="flex space-x-2 overflow-x-auto">
+                  {versions.map((version, index) => (
+                    <Button
+                      key={version.id}
+                      variant={selectedVersion === version.id ? "primary" : "secondary"}
+                      fill="solid"
+                      size="s"
+                      onClick={() => {
+                        setSelectedVersion(version.id);
+                        setEditableCode(version.code);
+                        setCurrentVersion(index + 1);
+                        updateIndexFile(version.code);
+                      }}
+                      className="flex-shrink-0"
+                    >
+                      V{index + 1}
+                    </Button>
+                  ))}
+                </div>
+                <div className="text-sm font-medium text-[#0053A0]">
+                  Current: V{currentVersion}
                 </div>
               </div>
-            )}
+              <div className="relative border-2 border-[#2864CE] rounded-lg overflow-hidden shadow-lg bg-white">
+                <Editor
+                  value={editableCode}
+                  onValueChange={handleCodeChange}
+                  highlight={(code) => highlight(code, languages.tsx, 'tsx')}
+                  padding={20}
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    height: 'calc(100vh - 600px)', // Adjusted height
+                    overflow: 'auto',
+                    backgroundColor: '#EDEEEF',
+                    color: '#000',
+                  }}
+                  textareaClassName="focus:outline-none"
+                  className="min-h-[300px] focus-within:shadow-outline-blue"
+                />
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <Button 
+                    variant="secondary"
+                    fill="outline"
+                    size="m"
+                    onClick={handleDownloadCode} 
+                    className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
+                    iconButton={<Download className="h-4 w-4" />}
+                  />
+                  <Button 
+                    variant="secondary"
+                    fill="outline"
+                    size="m"
+                    onClick={handleCopyCode} 
+                    className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
+                    iconButton={isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

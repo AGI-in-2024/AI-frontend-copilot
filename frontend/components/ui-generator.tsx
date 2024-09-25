@@ -16,8 +16,13 @@ import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Sandpack } from "@codesandbox/sandpack-react";
 import { getParameters } from 'codesandbox/lib/api/define';
+import dynamic from 'next/dynamic';
+
+const DynamicSandpack = dynamic(
+  () => import('@codesandbox/sandpack-react').then((mod) => mod.Sandpack),
+  { ssr: false }
+);
 
 interface Message {
   id: string
@@ -328,7 +333,7 @@ html, body {
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Избрже��ие вставлено",
+              text: "Избржеие вставлено",
               sender: 'user',
               image: e.target?.result as string
             }
@@ -741,7 +746,7 @@ html, body {
             <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
               <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Предпросмотр</h3>
               <div className="w-full h-[calc(100vh-300px)]">
-                <Sandpack
+                <DynamicSandpack
                   template="react"
                   files={{
                     "/App.js": {
@@ -789,8 +794,6 @@ html, body {
                       "@nlmk/ds-2.0": "2.5.3"
                     }
                   }}
-                  clientId={sandpackClient}
-                  onSandpackClientReady={(client) => setSandpackClient(client)}
                 />
               </div>
             </div>

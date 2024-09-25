@@ -315,7 +315,7 @@ html, body {
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Избр��жение вставлено",
+              text: "Избржение вставлено",
               sender: 'user',
               image: e.target?.result as string
             }
@@ -340,9 +340,11 @@ html, body {
   const handleCopyCode = () => {
     navigator.clipboard.writeText(editableCode).then(() => {
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setIsCopied(false), 2000);
     }, (err) => {
       console.error('Не удалось скопировать текст: ', err);
+      // Display error to user
+      alert(`Failed to copy: ${err.message}`);
     });
   }
 

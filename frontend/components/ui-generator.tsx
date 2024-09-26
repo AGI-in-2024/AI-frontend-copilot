@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@nlmk/ds-2.0'
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, MessageSquare, Wand2, Code, Clock, RefreshCw } from 'lucide-react'
+import { SendIcon, ImageIcon, Maximize2, Download, Copy, Minimize2, Check, Settings, MessageSquare, Wand2, Code, Clock, RefreshCw, Edit } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -60,40 +60,57 @@ const UiGenerator = () => {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
 
+  const commonStyles = `
+    @import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
+    @import url('https://fonts.cdnfonts.com/css/pt-root-ui');
+
+    html, body { background-color: var(--steel-10); }
+
+    #root {
+      -webkit-font-smoothing: auto;
+      -moz-font-smoothing: auto;
+      -moz-osx-font-smoothing: grayscale;
+      font-smoothing: auto;
+      text-rendering: optimizeLegibility;
+      font-smooth: always;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      margin: 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    * { font-family: 'PT Root UI', sans-serif !important; }
+  `;
+
   useEffect(() => {
     setMessages([{ 
       id: '1', 
       text: "Добро пожаловать в ИИ Генератор Интерфейса! Здесь вы можете создавать дизайн интерфейса с помощью искусственного интеллекта. Просто опишите желаемый интерфейс, и я помогу вам его сгенерировать. Используйте кнопки внизу для отправки сообщения, генерации описания или быстрого улучшения кода.", 
       sender: 'ai' 
-    }])
-  }, [])
+    }]);
 
-  useEffect(() => {
     // Create initial sandbox when component mounts
-    const initialCode = '// Initial code';
-    createSandbox(initialCode);
+    createSandbox('// Initial code');
   }, []);
 
   useEffect(() => {
     if (generatedCode) {
-      const newVersion = {
-        id: (versions.length + 1).toString(),
-        code: generatedCode
-      };
+      const newVersion = { id: (versions.length + 1).toString(), code: generatedCode };
       setVersions(prev => [...prev, newVersion]);
       setSelectedVersion(newVersion.id);
       setCurrentVersion(versions.length + 1);
       setEditableCode(generatedCode);
       updateIndexFile(generatedCode);
     }
-  }, [generatedCode])
+  }, [generatedCode]);
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
       await axios.post(`${API_URL}/update-preview`, { code }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       console.log('index.tsx updated successfully');
     } catch (error) {
@@ -103,41 +120,33 @@ const UiGenerator = () => {
 
   const handleSendAndGenerate = async () => {
     if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос ил описание для интерфейса.", sender: 'ai' }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
       return;
     }
 
-    const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' }
-    setMessages(prev => [...prev, newUserMessage])
-    setInput('')
+    const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' };
+    setMessages(prev => [...prev, newUserMessage]);
+    setInput('');
 
     setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерция дизайна интефейса...", sender: 'ai' }]);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
     
     if (isAdminMode) {
       setTimeout(() => {
-        const testerModeCode = `
-test
-            
-        `;
+        const testerModeCode = `test`;
         setGeneratedCode(testerModeCode);
         setEditableCode(testerModeCode);
         updateSandboxPreview(testerModeCode);
         setShowDesign(true);
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режим администратора!", sender: 'ai' }]);
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
         setIsGeneratingUI(false);
       }, 1000);
     } else {
       try {
-        console.log('Sending request to backend...');
         const response = await axios.post(`${API_URL}/generate`, { question: input }, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
-        console.log('Received response from backend:', response.data);
         const generatedCode = response.data.result;
-        console.log('Generated code:', generatedCode);
 
         if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
           throw new Error(generatedCode);
@@ -145,7 +154,7 @@ test
 
         setGeneratedCode(generatedCode);
         setEditableCode(generatedCode);
-        setCodeDescription(input); // Save the description
+        setCodeDescription(input);
         setIsCodeGenerated(true);
 
         await updateIndexFile(generatedCode);
@@ -157,9 +166,6 @@ test
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
       } catch (error: unknown) {
         console.error('Error generating UI:', error);
-        if (axios.isAxiosError(error)) {
-          console.error('Axios error details:', error.response?.data);
-        }
         const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
         setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
       } finally {
@@ -187,41 +193,8 @@ root.render(
           `,
           isBinary: false
         },
-        'App.js': {
-          content: code,
-          isBinary: false
-        },
-        'styles.css': {
-          content: `
-@import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
-@import url('https://fonts.cdnfonts.com/css/pt-root-ui');
-
-html, body {
-  background-color: var(--steel-10);
-}
-
-#root {
-  -webkit-font-smoothing: auto;
-  -moz-font-smoothing: auto;
-  -moz-osx-font-smoothing: grayscale;
-  font-smoothing: auto;
-  text-rendering: optimizeLegibility;
-  font-smooth: always;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  margin: 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-* {
-  font-family: 'PT Root UI', sans-serif !important;
-}
-          `,
-          isBinary: false
-        },
+        'App.js': { content: code, isBinary: false },
+        'styles.css': { content: commonStyles, isBinary: false },
         'public/index.html': {
           content: `
 <!DOCTYPE html>
@@ -254,8 +227,7 @@ html, body {
       }
     });
 
-    const sandboxUrl = `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`;
-    setSandboxUrl(sandboxUrl);
+    setSandboxUrl(`https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`);
   };
 
   const updateSandboxPreview = useCallback((code: string) => {
@@ -328,7 +300,7 @@ html, body {
           reader.onload = (e) => {
             const newMessage: Message = {
               id: Date.now().toString(),
-              text: "Избрже��ие вставлено",
+              text: "Избржеие вставлено",
               sender: 'user',
               image: e.target?.result as string
             }
@@ -384,41 +356,8 @@ root.render(
           `,
           isBinary: false
         },
-        'App.js': {
-          content: code,
-          isBinary: false
-        },
-        'styles.css': {
-          content: `
-@import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
-@import url('https://fonts.cdnfonts.com/css/pt-root-ui');
-
-html, body {
-  background-color: var(--steel-10);
-}
-
-#root {
-  -webkit-font-smoothing: auto;
-  -moz-font-smoothing: auto;
-  -moz-osx-font-smoothing: grayscale;
-  font-smoothing: auto;
-  text-rendering: optimizeLegibility;
-  font-smooth: always;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  margin: 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-* {
-  font-family: 'PT Root UI', sans-serif !important;
-}
-          `,
-          isBinary: false
-        },
+        'App.js': { content: code, isBinary: false },
+        'styles.css': { content: commonStyles, isBinary: false },
         'public/index.html': {
           content: `
 <!DOCTYPE html>
@@ -427,25 +366,8 @@ html, body {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
-</head>
-<body>
-  <div id="root"></div>
-</body>
 </html>
           `,
-          isBinary: false
-        },
-        'package.json': {
-          content: JSON.stringify({
-            dependencies: {
-              react: "^18.0.0",
-              "react-dom": "^18.0.0",
-              "react-scripts": "^5.0.0",
-              "@nlmk/ds-2.0": "2.5.3"
-            },
-            main: "/index.js",
-            devDependencies: {}
-          }),
           isBinary: false
         }
       }
@@ -541,6 +463,13 @@ html, body {
       const improvedCode = response.data.result;
       setEditableCode(improvedCode);
       updateSandboxPreview(improvedCode);
+      
+      // Add versioning for quick edit
+      const newVersion = { id: (versions.length + 1).toString(), code: improvedCode };
+      setVersions(prev => [...prev, newVersion]);
+      setSelectedVersion(newVersion.id);
+      setCurrentVersion(versions.length + 1);
+
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Код успешно улучшен!", sender: 'ai' }]);
     } catch (error) {
       console.error('Ошибка при улучшении кода:', error);
@@ -594,6 +523,7 @@ html, body {
 
   return (
     <div className="flex h-screen bg-[#EDEEEF]">
+      {/* Chat section */}
       <div className={`flex flex-col ${showDesign ? (isFullscreen ? 'w-0' : 'w-1/2') : 'w-full'} p-4 transition-all duration-300`}>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
@@ -642,15 +572,17 @@ html, body {
           <ScrollArea className="h-[calc(100vh-280px)]">
             <CardContent>
               {messages.map((message, index) => (
-                <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'} ${index === 0 ? 'mt-4' : ''}`}>
-                  <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#2864CE] text-white' : 'bg-[#EDEEEF] text-black'}`}>
-                    {message.image ? (
-                      <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                    )}
+                <div key={message.id} className={`mb-4 ${index === 0 ? 'mt-4' : ''}`}>
+                  <div className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`inline-block p-3 rounded-lg ${message.sender === 'user' ? 'bg-[#2864CE] text-white' : 'bg-[#EDEEEF] text-black'} max-w-[80%]`}>
+                      {message.image ? (
+                        <img src={message.image} alt="Загруженное изображение" className="max-w-full h-auto rounded" />
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap text-left">{message.text}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-2">
+                  <div className={`mt-2 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                     <Button
                       variant="secondary"
                       fill="outline"
@@ -722,6 +654,8 @@ html, body {
           accept="image/*"
         />
       </div>
+
+      {/* Preview and code section */}
       {showDesign && (
         <div className={`${isFullscreen ? 'w-full' : 'w-1/2'} h-screen overflow-auto bg-[#EDEEEF] border-l border-[#2864CE] p-4 transition-all duration-300`}>
           <div className="flex justify-between items-center mb-4">
@@ -748,49 +682,21 @@ html, body {
                       code: editableCode,
                     },
                     "/styles.css": {
-                      code: `
-@import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
-@import url('https://fonts.cdnfonts.com/css/pt-root-ui');
-
-html, body {
-  background-color: var(--steel-10);
-}
-
-#root {
-  -webkit-font-smoothing: auto;
-  -moz-font-smoothing: auto;
-  -moz-osx-font-smoothing: grayscale;
-  font-smoothing: auto;
-  text-rendering: optimizeLegibility;
-  font-smooth: always;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  margin: 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-* {
-  font-family: 'PT Root UI', sans-serif !important;
-}
-                      `,
+                      code: commonStyles,
                     },
                   }}
                   options={{
                     showNavigator: false,
                     showTabs: false,
-                    editorHeight: 600, // Increased editor height
-                    editorWidthPercentage: 60, // Increased editor width percentage
+                    editorHeight: 600,
+                    editorWidthPercentage: 60,
                   }}
                   customSetup={{
                     dependencies: {
                       "@nlmk/ds-2.0": "2.5.3"
                     }
                   }}
-                  clientId={sandpackClient}
-                  onSandpackClientReady={(client) => setSandpackClient(client)}
+                  theme="light"
                 />
               </div>
             </div>
@@ -834,7 +740,7 @@ html, body {
                   className="w-full p-2 border border-[#2864CE] rounded"
                 />
               ) : (
-                <p className="text-sm whitespace-pre-wrap bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF]">{codeDescription}</p>
+                <p className="text-sm whitespace-pre-wrap bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF] text-black">{codeDescription}</p>
               )}
               <Button
                 variant="secondary"
@@ -842,14 +748,15 @@ html, body {
                 size="s"
                 onClick={() => setIsEditingDescription(!isEditingDescription)}
                 className="mt-2 border-[#2864CE] text-[#1952B6] hover:bg-[#E6F0F9]"
+                iconButton={isEditingDescription ? <Check className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
               >
-                {isEditingDescription ? 'Сохранить' : 'Редактировать'}
+                {isEditingDescription ? '' : ''}
               </Button>
             </div>
 
             {/* Code Section */}
             <div className="bg-white rounded-lg shadow-lg p-4">
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4 flex justify-between items-center">c
                 <h3 className="text-lg font-semibold text-[#0053A0]">Код</h3>
                 <div className="flex space-x-2 overflow-x-auto">
                   {versions.map((version, index) => (
@@ -896,7 +803,7 @@ html, body {
                   <Button 
                     variant="secondary"
                     fill="outline"
-                    size="m"
+                    size="s"
                     onClick={handleDownloadCode} 
                     className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
                     iconButton={<Download className="h-4 w-4" />}
@@ -904,7 +811,7 @@ html, body {
                   <Button 
                     variant="secondary"
                     fill="outline"
-                    size="m"
+                    size="s"
                     onClick={handleCopyCode} 
                     className="bg-white text-[#0053A0] hover:bg-[#E6F0F9] border-[#0053A0]"
                     iconButton={isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

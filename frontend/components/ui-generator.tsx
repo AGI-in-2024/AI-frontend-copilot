@@ -16,8 +16,13 @@ import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Sandpack } from "@codesandbox/sandpack-react";
-import { getParameters } from 'codesandbox/lib/api/define';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Sandpack with ssr disabled
+const DynamicSandpack = dynamic(
+  () => import('@codesandbox/sandpack-react').then((mod) => mod.Sandpack),
+  { ssr: false }
+);
 
 interface Message {
   id: string
@@ -59,6 +64,7 @@ const UiGenerator = () => {
   const [descriptionMessageId, setDescriptionMessageId] = useState<string | null>(null)
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const commonStyles = `
     @import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
@@ -106,6 +112,10 @@ const UiGenerator = () => {
       updateIndexFile(generatedCode);
     }
   }, [generatedCode]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const updateIndexFile = useCallback(async (code: string) => {
     try {
@@ -675,29 +685,31 @@ root.render(
             <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
               <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Предпросмотр</h3>
               <div className="w-full h-[calc(100vh-300px)]">
-                <Sandpack
-                  template="react"
-                  files={{
-                    "/App.js": {
-                      code: editableCode,
-                    },
-                    "/styles.css": {
-                      code: commonStyles,
-                    },
-                  }}
-                  options={{
-                    showNavigator: false,
-                    showTabs: false,
-                    editorHeight: 600,
-                    editorWidthPercentage: 60,
-                  }}
-                  customSetup={{
-                    dependencies: {
-                      "@nlmk/ds-2.0": "2.5.3"
-                    }
-                  }}
-                  theme="light"
-                />
+                {isMounted && (
+                  <DynamicSandpack
+                    template="react"
+                    files={{
+                      "/App.js": {
+                        code: editableCode,
+                      },
+                      "/styles.css": {
+                        code: commonStyles,
+                      },
+                    }}
+                    options={{
+                      showNavigator: false,
+                      showTabs: false,
+                      editorHeight: 600,
+                      editorWidthPercentage: 60,
+                    }}
+                    customSetup={{
+                      dependencies: {
+                        "@nlmk/ds-2.0": "2.5.3"
+                      }
+                    }}
+                    theme="light"
+                  />
+                )}
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ... other configurations ...
+  reactStrictMode: true,
   transpilePackages: ['@codesandbox/sandpack-react'],
 };
 

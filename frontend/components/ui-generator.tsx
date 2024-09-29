@@ -707,9 +707,6 @@ root.render(
                       }
                     }}
                     theme="light"
-                    onBridge={(bridge) => {
-                      setSandpackClient(bridge);
-                    }}
                   />
                 )}
               </div>

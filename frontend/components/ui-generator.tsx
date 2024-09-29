@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import dynamic from 'next/dynamic';
+import { getParameters } from 'codesandbox/lib/api/define';
 
 // Dynamically import Sandpack with ssr disabled
 const DynamicSandpack = dynamic(

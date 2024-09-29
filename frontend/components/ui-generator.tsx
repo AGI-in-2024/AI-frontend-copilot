@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import dynamic from 'next/dynamic';
 import { getParameters } from 'codesandbox/lib/api/define';
+import { SandpackClient } from '@codesandbox/sandpack-client';
 
 // Dynamically import Sandpack with ssr disabled
 const DynamicSandpack = dynamic(
@@ -40,33 +41,38 @@ interface Version {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const UiGenerator = () => {
+  // State declarations
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const [isGeneratingUI, setIsGeneratingUI] = useState(false)
   const [generatedCode, setGeneratedCode] = useState('')
   const [editableCode, setEditableCode] = useState('')
   const [showDesign, setShowDesign] = useState(false)
   const [versions, setVersions] = useState<Version[]>([])
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isAdminMode, setIsAdminMode] = useState(false)
-  const [previewType, setPreviewType] = useState<'iframe' | 'codesandbox'>('codesandbox')
   const [currentVersion, setCurrentVersion] = useState(1)
-  const [isCopied, setIsCopied] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [sandboxUrl, setSandboxUrl] = useState('');
-  const sandboxIframeRef = useRef<HTMLIFrameElement>(null);
-  const [sandpackClient, setSandpackClient] = useState(null);
-  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
-  const [isImproving, setIsImproving] = useState(false);
+  const [isCopied, setIsCopied] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [sandboxUrl, setSandboxUrl] = useState('')
+  const [sandpackClient, setSandpackClient] = useState<SandpackClient | null>(null)
   const [codeDescription, setCodeDescription] = useState('')
   const [isCodeGenerated, setIsCodeGenerated] = useState(false)
   const [descriptionMessageId, setDescriptionMessageId] = useState<string | null>(null)
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [isRegeneratingCode, setIsRegeneratingCode] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const sandboxIframeRef = useRef<HTMLIFrameElement>(null)
+
+  // Loading states
+  const [isGeneratingUI, setIsGeneratingUI] = useState(false)
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isImproving, setIsImproving] = useState(false)
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState(false)
+
+  // Constants
   const commonStyles = `
     @import url('https://nlmk-group.github.io/ds-2.0//css/main.css');
     @import url('https://fonts.cdnfonts.com/css/pt-root-ui');
@@ -92,6 +98,7 @@ const UiGenerator = () => {
     * { font-family: 'PT Root UI', sans-serif !important; }
   `;
 
+  // Effects
   useEffect(() => {
     setMessages([{ 
       id: '1', 
@@ -99,7 +106,6 @@ const UiGenerator = () => {
       sender: 'ai' 
     }]);
 
-    // Create initial sandbox when component mounts
     createSandbox('// Initial code');
   }, []);
 
@@ -118,6 +124,7 @@ const UiGenerator = () => {
     setIsMounted(true);
   }, []);
 
+  // Callbacks
   const updateIndexFile = useCallback(async (code: string) => {
     try {
       await axios.post(`${API_URL}/update-preview`, { code }, {
@@ -129,62 +136,19 @@ const UiGenerator = () => {
     }
   }, []);
 
-  const handleSendAndGenerate = async () => {
-    if (!input.trim()) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
-      return;
+  const updateSandboxPreview = useCallback((code: string) => {
+    if (sandpackClient) {
+      sandpackClient.updateFile('/App.js', code);
     }
+  }, [sandpackClient]);
 
-    const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' };
-    setMessages(prev => [...prev, newUserMessage]);
-    setInput('');
+  const handleCodeChange = useCallback((code: string) => {
+    setEditableCode(code);
+    updateIndexFile(code);
+    updateSandboxPreview(code);
+  }, [updateIndexFile, updateSandboxPreview]);
 
-    setIsGeneratingUI(true);
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
-    
-    if (isAdminMode) {
-      setTimeout(() => {
-        const testerModeCode = `test`;
-        setGeneratedCode(testerModeCode);
-        setEditableCode(testerModeCode);
-        updateSandboxPreview(testerModeCode);
-        setShowDesign(true);
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
-        setIsGeneratingUI(false);
-      }, 1000);
-    } else {
-      try {
-        const response = await axios.post(`${API_URL}/generate`, { question: input }, {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        const generatedCode = response.data.result;
-
-        if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
-          throw new Error(generatedCode);
-        }
-
-        setGeneratedCode(generatedCode);
-        setEditableCode(generatedCode);
-        setCodeDescription(input);
-        setIsCodeGenerated(true);
-
-        await updateIndexFile(generatedCode);
-
-        const sandboxUrl = getCodeSandboxUrl(generatedCode);
-        setSandboxUrl(sandboxUrl);
-
-        setShowDesign(true);
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
-      } catch (error: unknown) {
-        console.error('Error generating UI:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
-        setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
-      } finally {
-        setIsGeneratingUI(false);
-      }
-    }
-  };
-
+  // Helper functions
   const createSandbox = (code: string) => {
     const parameters = getParameters({
       files: {
@@ -241,11 +205,101 @@ root.render(
     setSandboxUrl(`https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`);
   };
 
-  const updateSandboxPreview = useCallback((code: string) => {
-    if (sandpackClient) {
-      sandpackClient.updateFile('/App.js', code);
+  const getCodeSandboxUrl = useCallback((code: string) => {
+    const parameters = getParameters({
+      files: {
+        'index.js': {
+          content: `
+import React, { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles.css";
+import App from "./App";
+
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+          `,
+          isBinary: false
+        },
+        'App.js': { content: code, isBinary: false },
+        'styles.css': { content: commonStyles, isBinary: false },
+        'public/index.html': {
+          content: `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</html>
+          `,
+          isBinary: false
+        }
+      }
+    });
+
+    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`;
+  }, []);
+
+  // Event handlers
+  const handleSendAndGenerate = async () => {
+    if (!input.trim()) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Пожалуйста, введите вопрос или описание для интерфейса.", sender: 'ai' }]);
+      return;
     }
-  }, [sandpackClient]);
+
+    const newUserMessage: Message = { id: Date.now().toString(), text: input, sender: 'user' };
+    setMessages(prev => [...prev, newUserMessage]);
+    setInput('');
+
+    setIsGeneratingUI(true);
+    setMessages(prev => [...prev, { id: Date.now().toString(), text: "Генерация дизайна интерфейса...", sender: 'ai' }]);
+    
+    if (isAdminMode) {
+      setTimeout(() => {
+        const testerModeCode = `test`;
+        setGeneratedCode(testerModeCode);
+        setEditableCode(testerModeCode);
+        updateSandboxPreview(testerModeCode);
+        setShowDesign(true);
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
+        setIsGeneratingUI(false);
+      }, 1000);
+    } else {
+      try {
+        const response = await axios.post(`${API_URL}/generate`, { question: input }, {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const generatedCode = response.data.result;
+
+        if (typeof generatedCode === 'string' && generatedCode.startsWith('An error occurred')) {
+          throw new Error(generatedCode);
+        }
+
+        setGeneratedCode(generatedCode);
+        setEditableCode(generatedCode);
+        setCodeDescription(input);
+        setIsCodeGenerated(true);
+
+        await updateIndexFile(generatedCode);
+
+        const sandboxUrl = getCodeSandboxUrl(generatedCode);
+        setSandboxUrl(sandboxUrl);
+
+        setShowDesign(true);
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован!", sender: 'ai' }]);
+      } catch (error: unknown) {
+        console.error('Error generating UI:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: `Произошла ошибка при генерации интерфейса: ${errorMessage}`, sender: 'ai' }]);
+      } finally {
+        setIsGeneratingUI(false);
+      }
+    }
+  };
 
   const handleCreateNewDesign = () => {
     setMessages([{ id: Date.now().toString(), text: "Здравствуйте! Как  могу помочь вам сгенерировть дизайн интерфейса сегодня?", sender: 'ai' }])
@@ -259,24 +313,6 @@ root.render(
   const handleOpenDesignHistory = () => {
     alert('Функция итории дизайнов не реализована в этой демо-версии.')
   }
-
-  const handleCodeChange = useCallback((code: string) => {
-    setEditableCode(code);
-    updateIndexFile(code);
-    updateSandboxPreview(code);
-  }, [updateIndexFile, updateSandboxPreview]);
-
-  const renderComponent = (Component: any): React.ReactNode => {
-    if (typeof Component === 'function') {
-      try {
-        return <Component />;
-      } catch (error) {
-        console.error('Error rendering component:', error);
-        return <div className="text-red-500">Error rendering component: {error instanceof Error ? error.message : 'Unknown error'}</div>;
-      }
-    }
-    return Component;
-  };
 
   const handleAddImage = () => {
     if (fileInputRef.current) {
@@ -347,45 +383,6 @@ root.render(
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
   }
-
-  const getCodeSandboxUrl = useCallback((code: string) => {
-    const parameters = getParameters({
-      files: {
-        'index.js': {
-          content: `
-import React, { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import "./styles.css";
-import App from "./App";
-
-const root = createRoot(document.getElementById("root"));
-root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
-          `,
-          isBinary: false
-        },
-        'App.js': { content: code, isBinary: false },
-        'styles.css': { content: commonStyles, isBinary: false },
-        'public/index.html': {
-          content: `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</html>
-          `,
-          isBinary: false
-        }
-      }
-    });
-
-    return `https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`;
-  }, []);
 
   const handleGenerateDescription = async () => {
     if (!input.trim()) {
@@ -532,6 +529,7 @@ root.render(
     }
   };
 
+  // Render
   return (
     <div className="flex h-screen bg-[#EDEEEF]">
       {/* Chat section */}
@@ -709,6 +707,9 @@ root.render(
                       }
                     }}
                     theme="light"
+                    onBridge={(bridge) => {
+                      setSandpackClient(bridge);
+                    }}
                   />
                 )}
               </div>

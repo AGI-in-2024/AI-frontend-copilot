@@ -33,13 +33,20 @@ try:
     db = FAISS.load_local(
         FAISS_DB_PATH, embeddings, allow_dangerous_deserialization=True
     )
-    retriever = db.as_retriever(
+    def_ret = db.as_retriever(
         search_type="mmr",
         search_kwargs={
-            'k': 5,
-            'lambda_mult': 0.45,
-            'fetch_k': 40}
+            'k': 6,
+            'lambda_mult': 0.51,
+            'fetch_k': 50
+        }
     )
+    dbg_ret = db.as_retriever(
+        search_kwargs={
+            'k': 1
+        }
+    )
+
     memory = MemorySaver()
     components_descs = get_comps_descs()
 except Exception as e:
@@ -106,26 +113,28 @@ async def funnel(state: InterfaceGeneratingState):
             }
         )
 
-        # app.logger.info(f"cur state is {state}")
         print(f"\n\nNeeded comps {res}")
         state.components = res
 
     return state
 
 
-@chain
-async def search_docs(queries: list[str]):
-    tasks = [retriever.ainvoke(query) for query in queries]  # создаем задачи для всех запросов
-    results = await asyncio.gather(*tasks)  # выполняем их параллельно
-    docs = [doc for result in results for doc in result]  # собираем все результаты в один список
+async def search_docs(queries: list[str], is_dbg: bool = False):
+    retriever = def_ret
+    if is_dbg:
+        retriever = dbg_ret
+
+    tasks = [retriever.ainvoke(query) for query in queries]
+    results = await asyncio.gather(*tasks)
+    docs = [doc for result in results for doc in result]
     return docs
 
 
 async def write_code(state: InterfaceGeneratingState):
     interface_coder_chain = (
             {
-                "interface_components": lambda x: x["interface_components"],  # Get context and format it
-                "query": lambda x: x["query"],  # Pass the question unchanged
+                "interface_components": lambda x: x["interface_components"],
+                "query": lambda x: x["query"],
                 "code_sample": lambda x: x["code_sample"]
             }
             | CODER
@@ -134,10 +143,10 @@ async def write_code(state: InterfaceGeneratingState):
     )
     interface_coder_iter_chain = (
             {
-                "interface_components": lambda x: x["interface_components"],  # Get context and format it
-                "query": lambda x: x["query"],  # Pass the question unchanged
-                "new_query": lambda x: x["new_query"],  # Pass the question unchanged
-                "instructions": lambda x: x["instructions"],  # Pass the question unchanged
+                "interface_components": lambda x: x["interface_components"],
+                "query": lambda x: x["query"],
+                "new_query": lambda x: x["new_query"],
+                "instructions": lambda x: x["instructions"],
                 "existing_code": lambda x: x["existing_code"]
             }
             | CODER_ITER
@@ -151,7 +160,7 @@ async def write_code(state: InterfaceGeneratingState):
             "new_query": state.new_query,
             "existing_code": state.code,
             "instructions": state.instructions,
-            "interface_components": await search_docs.ainvoke(
+            "interface_components": await search_docs(
                 [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
                  for x in state.components_to_modify]
             )
@@ -160,40 +169,16 @@ async def write_code(state: InterfaceGeneratingState):
         interface_code = interface_coder_chain.invoke({
             "query": state.query,
             "code_sample": state.code,
-            "interface_components": await search_docs.ainvoke(
+            "interface_components": await search_docs(
                 [f"Detailed ARG TYPES of props a component {x.title} can have and CODE examples of using {x.title}"
                  for x in state.components.needed_components]
             )
         })
 
     state.code = interface_code
-
     print(f"\nWritten code: {interface_code}")
 
     return state
-
-
-async def debug_docs(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
-    queries = []
-    code_lines = code.split("\n")
-
-    for err in errors_list:
-        cur_line = code_lines[int((err["location"]).split(" ")[4]) - 1]
-        if "Type" in err["message"]:
-            queries.append(f"Types and Code samples to debug {cur_line} with error {err["message"]}")
-        elif "Property" in err["message"]:
-            queries.append(f"Props to debug {cur_line} with error {err["message"]}")
-        elif "Children" in err["message"]:
-            queries.append(f"Children types to debug {cur_line} with error {err["message"]}")
-        elif "Module" in err["message"]:
-            queries.append(
-                f"ArgTypes and Codes for COMPONENT that could replace non-existent member specified in this message: {err["message"]}")
-
-    res = "No special information needed to fix these errors"
-    if queries:
-        res = await search_docs.ainvoke(queries)
-
-    return res
 
 
 async def debug_docs_v2(code: str, errors_list: list[Dict[str, Any]]) -> list[str]:
@@ -215,7 +200,7 @@ async def debug_docs_v2(code: str, errors_list: list[Dict[str, Any]]) -> list[st
     print(f"QUERIES TO FIX BUGS: {queries}")
     res = "No special information needed to fix these errors"
     if queries:
-        res = await search_docs.ainvoke(queries)
+        res = await search_docs(queries, True)
 
     return res
 
@@ -287,8 +272,10 @@ async def generate(query: str) -> str:
         if memory.get_tuple(config):
             cur_dict: dict = memory.get_tuple(config)[1]["channel_values"]
             cur_state = InterfaceGeneratingState(**cur_dict)
-            cur_state.new_query = query
-            logging.info(f"\n\nPREVIOUS STATE: {cur_state}")
+
+            # add new button for iterative process
+            # cur_state.new_query = query
+            cur_state.query = query
         if not cur_state:
             cur_state = InterfaceGeneratingState(query=query)
 

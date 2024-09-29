@@ -16,15 +16,7 @@ import axios from 'axios';
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import dynamic from 'next/dynamic';
 import { getParameters } from 'codesandbox/lib/api/define';
-import { SandpackClient } from '@codesandbox/sandpack-client';
-
-// Dynamically import Sandpack with ssr disabled
-const DynamicSandpack = dynamic(
-  () => import('@codesandbox/sandpack-react').then((mod) => mod.Sandpack),
-  { ssr: false }
-);
 
 interface Message {
   id: string
@@ -55,12 +47,10 @@ const UiGenerator = () => {
   const [isCopied, setIsCopied] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [sandboxUrl, setSandboxUrl] = useState('')
-  const [sandpackClient, setSandpackClient] = useState<SandpackClient | null>(null)
   const [codeDescription, setCodeDescription] = useState('')
   const [isCodeGenerated, setIsCodeGenerated] = useState(false)
   const [descriptionMessageId, setDescriptionMessageId] = useState<string | null>(null)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -120,10 +110,6 @@ const UiGenerator = () => {
     }
   }, [generatedCode]);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   // Callbacks
   const updateIndexFile = useCallback(async (code: string) => {
     try {
@@ -136,17 +122,11 @@ const UiGenerator = () => {
     }
   }, []);
 
-  const updateSandboxPreview = useCallback((code: string) => {
-    if (sandpackClient) {
-      sandpackClient.updateFile('/App.js', code);
-    }
-  }, [sandpackClient]);
-
   const handleCodeChange = useCallback((code: string) => {
     setEditableCode(code);
     updateIndexFile(code);
-    updateSandboxPreview(code);
-  }, [updateIndexFile, updateSandboxPreview]);
+    createSandbox(code); // Update the sandbox URL when the code changes
+  }, [updateIndexFile]);
 
   // Helper functions
   const createSandbox = (code: string) => {
@@ -170,29 +150,13 @@ root.render(
         },
         'App.js': { content: code, isBinary: false },
         'styles.css': { content: commonStyles, isBinary: false },
-        'public/index.html': {
-          content: `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</head>
-<body>
-  <div id="root"></div>
-</body>
-</html>
-          `,
-          isBinary: false
-        },
         'package.json': {
           content: JSON.stringify({
             dependencies: {
-              react: "^18.0.0",
+              "react": "^18.0.0",
               "react-dom": "^18.0.0",
               "react-scripts": "^5.0.0",
-              "@nlmk/ds-2.0": "2.5.3"
+              "@nlmk/ds-2.0": "2.5.12"
             },
             main: "/index.js",
             devDependencies: {}
@@ -202,7 +166,7 @@ root.render(
       }
     });
 
-    setSandboxUrl(`https://codesandbox.io/api/v1/sandboxes/define?parameters=${parameters}&query=view=preview&runonclick=1&embed=1`);
+    setSandboxUrl(`https://codesandbox.io/embed/new?parameters=${parameters}&query=view=preview&runonclick=1`);
   };
 
   const getCodeSandboxUrl = useCallback((code: string) => {
@@ -226,6 +190,19 @@ root.render(
         },
         'App.js': { content: code, isBinary: false },
         'styles.css': { content: commonStyles, isBinary: false },
+        'package.json': {
+          content: JSON.stringify({
+            dependencies: {
+              "react": "^18.0.0",
+              "react-dom": "^18.0.0",
+              "react-scripts": "^5.0.0",
+              "@nlmk/ds-2.0": "2.5.12"
+            },
+            main: "/index.js",
+            devDependencies: {}
+          }),
+          isBinary: false
+        },
         'public/index.html': {
           content: `
 <!DOCTYPE html>
@@ -234,6 +211,10 @@ root.render(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
+</head>
+<body>
+  <div id="root"></div>
+</body>
 </html>
           `,
           isBinary: false
@@ -263,7 +244,7 @@ root.render(
         const testerModeCode = `test`;
         setGeneratedCode(testerModeCode);
         setEditableCode(testerModeCode);
-        updateSandboxPreview(testerModeCode);
+        createSandbox(testerModeCode);
         setShowDesign(true);
         setMessages(prev => [...prev, { id: Date.now().toString(), text: "Дизайн интерфейса успешно сгенерирован в режиме администратора!", sender: 'ai' }]);
         setIsGeneratingUI(false);
@@ -470,7 +451,6 @@ root.render(
       });
       const improvedCode = response.data.result;
       setEditableCode(improvedCode);
-      updateSandboxPreview(improvedCode);
       
       // Add versioning for quick edit
       const newVersion = { id: (versions.length + 1).toString(), code: improvedCode };
@@ -519,7 +499,6 @@ root.render(
       });
       const regeneratedCode = response.data.result;
       setEditableCode(regeneratedCode);
-      updateSandboxPreview(regeneratedCode);
       setMessages(prev => [...prev, { id: Date.now().toString(), text: "Code has been regenerated based on the description!", sender: 'ai' }]);
     } catch (error) {
       console.error('Error regenerating code:', error);
@@ -684,31 +663,13 @@ root.render(
             <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
               <h3 className="text-lg font-semibold text-[#0053A0] mb-2">Предпросмотр</h3>
               <div className="w-full h-[calc(100vh-300px)]">
-                {isMounted && (
-                  <DynamicSandpack
-                    template="react"
-                    files={{
-                      "/App.js": {
-                        code: editableCode,
-                      },
-                      "/styles.css": {
-                        code: commonStyles,
-                      },
-                    }}
-                    options={{
-                      showNavigator: false,
-                      showTabs: false,
-                      editorHeight: 600,
-                      editorWidthPercentage: 60,
-                    }}
-                    customSetup={{
-                      dependencies: {
-                        "@nlmk/ds-2.0": "2.5.3"
-                      }
-                    }}
-                    theme="light"
-                  />
-                )}
+                <iframe
+                  src={sandboxUrl}
+                  style={{width: '100%', height: '100%', border: 0, borderRadius: '4px', overflow: 'hidden'}}
+                  title="CodeSandbox Preview"
+                  allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
+                  sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+                />
               </div>
             </div>
 

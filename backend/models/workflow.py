@@ -49,6 +49,7 @@ try:
 
     memory = MemorySaver()
     components_descs = get_comps_descs()
+    docs_cache = {}
 except Exception as e:
     logging.error(f"{e}")
 
@@ -123,10 +124,21 @@ async def search_docs(queries: list[str], is_dbg: bool = False):
     retriever = def_ret
     if is_dbg:
         retriever = dbg_ret
+    qrs = []
+    docs = []
+    for q in queries:
+        if q in docs_cache:
+            docs.append(docs_cache[q])
+        else:
+            qrs.append(q)
+    if qrs:
+        tasks = [retriever.ainvoke(query) for query in qrs]
+        results = await asyncio.gather(*tasks)
 
-    tasks = [retriever.ainvoke(query) for query in queries]
-    results = await asyncio.gather(*tasks)
-    docs = [doc for result in results for doc in result]
+        for i, result in enumerate(results):
+            docs += result
+            docs_cache[qrs[i]] = result
+
     return docs
 
 

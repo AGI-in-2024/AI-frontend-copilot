@@ -203,11 +203,11 @@ QUERY_GENERATOR = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to generate precise search queries based only on the provided TypeScript code and error messages."
+            "You are a highly skilled front-end developer specializing in React and TypeScript. Your task is to generate precise search queries based solely on the provided TypeScript code and error messages."
         ),
         (
             "human",
-            """
+            '''
             Current code that contains errors:
             {code}
 
@@ -215,17 +215,18 @@ QUERY_GENERATOR = ChatPromptTemplate.from_messages(
             {errors_list}
 
             Your task is to:
-            1. Carefully review the error messages and the specific lines of code where the errors occur.
-            2. Focus **only** on the component(s) where the errors occur, their props, and types, as evident from the code.
-            3. Generate **concise, targeted search queries** to retrieve documentation or examples relevant to these components and their props.
-            4. Ensure each query is clear and specific to the components and props, and does not contain unnecessary generalizations or external troubleshooting details.
+            1. **Focus on extracting the interface mentioned in the error messages** where the props do not match (e.g., IntrinsicAttributes & IBox in the error).
+            2. Generate **targeted search queries** for this specific interface and its prop types.
+            3. If necessary, include the component and its required props from the code in the query.
+            4. Avoid generalizations and irrelevant details. Focus only on the interface and props mismatches as described in the error message.
 
-            Return a STRING of clean, concise queries for retrieving documentation, separated by commas. Example output:
-            "Box component missing prop types for display justifyContent, Box usage example with children and p props"
-            """
+            Return a STRING of clean, concise queries for retrieving documentation or usage examples, separated by commas. Example output:
+            "IBox interface prop types for display, IBox usage example with children and flexDirection props"
+            '''
         ),
     ]
 )
+
 
 
 

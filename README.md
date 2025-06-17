@@ -15,7 +15,7 @@ AI-frontend-copilot/
 ├── frontend/        # Веб-интерфейс (Next.js, TailwindCSS)
 ├── vite-preview-mode/my-app/ # SPA-превью на Vite+React
 ├── requirements.txt # Python-зависимости для backend
-└── README.md        # Этот файл
+└── README.md       
 ```
 
 ## Быстрый старт
